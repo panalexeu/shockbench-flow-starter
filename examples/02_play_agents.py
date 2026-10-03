@@ -15,7 +15,7 @@ from sbf_starter.agents import load
 def main(task: str = "tiny", episodes: int = 3) -> None:
     """Print both agents' costs on dev episodes 0 .. episodes - 1."""
     env = gym.make(env_id(task))
-    agents = {name: load(name) for name in ("random", "template")}
+    agents = {name: load(name) for name in ("random", "mine")}
     for n in range(episodes):
         costs = {name: play_episode(env, cls, n) for name, cls in agents.items()}
         print(f"dev episode {n}: " + ", ".join(f"{k} {v:,.0f} USD" for k, v in costs.items()))

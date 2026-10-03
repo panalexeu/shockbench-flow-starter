@@ -25,3 +25,5 @@ __pycache__/
 
 # run folders and zips (the examples and `sbf pack` write here)
 /outputs/
+
+stuff/
