@@ -33,7 +33,7 @@ def write_change(id_: str, change: Change):
         policy = _get_def_policy()
         new_policy = policy.replace(change.old_string, change.new_string)
         if policy == new_policy: 
-            raise ReplacmentError('Note: content of files did not change and stays the same.')
+            raise ReplacmentError('Content of files did not change and stays the same.')
         f.write(new_policy)
 
 def fitness(id_: str, episodes): 
@@ -81,7 +81,7 @@ if __name__ == '__main__':
                 results.append(str(e))
                 
         # return scores for changes 
-        state = 'results: ' + ' '.join([f'change{i}: {score}' for i, score in enumerate(results)])
+        state = 'results: ' + ' '.join([f'change{i}: {res:.2f}' if isinstance(res, float) else f'change{i}: {res}' for i, res in enumerate(results)])
 
         print(f'iter: {i}')
         print(proposed_change.reasoning)
