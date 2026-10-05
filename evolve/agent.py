@@ -53,8 +53,14 @@ class AgentOpenAI(Agent):
         with open(self.ctx_path + 'policy.py', 'r') as f: 
             return f.read() 
 
+    def _get_root_ctx(self) -> str: 
+        with open(self.ctx_path + 'ROOT.md', 'r') as f: 
+            return f.read() 
+
     def get_prefix_context(self) -> str: 
         return F'''
+{self._get_root_ctx()}
+        
 You are an AI assistant. Your task is to iteratively improve the RL policy for the supply-shock chain environment.
 
 The initial policy is defined below:
@@ -66,7 +72,13 @@ Rules:
 2. You may propose multiple changes in a single iteration, for example to compare several alternative policy changes or to sweep over policy parameters.
 3. Structure your response in this order: first your reasoning, then your proposed changes.
 
-Each proposed change will be evaluated, and its score will be returned to you so that you can continue improving the policy.
+Each proposed change will be evaluated, and its score will be returned to you in the following format so that you can continue improving the policy:
+
+results: change[0] [score], change[1] [score], ..., change[N-1] [score]
+
+where:
+- the change number is the position of that change in the list you proposed in this iteration, starting from 0;
+- the score is the numerical result of evaluating that change. A score of -1 means the change failed and an exception was thrown.
 '''.strip()
 
     def get_usage(self) -> dict: 

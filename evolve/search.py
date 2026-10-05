@@ -54,7 +54,7 @@ if __name__ == '__main__':
 
     # search loop 
     agent = AgentOpenAI()
-    results = 'begin!'
+    results = f'begin! current task is {task}'
     storage = ChangesStorage()
     all_changes = [] 
     for i in range(iters): 
@@ -77,7 +77,7 @@ if __name__ == '__main__':
 
         # return scores for changes 
         results = 'results: ' + ' '.join([f'change{i}: {score}' for i, score in enumerate(scores)])
-    
+
     storage.dump(all_changes)
     print(agent.get_usage())
 
