@@ -25,7 +25,7 @@ class AgentOpenAI(Agent):
         self.history = self.init_history()
         self.input_tokens, self.output_tokens, self.cached_tokens,  self.cache_write_tokens = 0, 0, 0, 0
 
-    def next_changes(self) -> Changes:
+    def next_change(self) -> Changes:
         res = self.client.responses.parse(
             model=self.model, 
             reasoning={'effort': self.reasoning},
