@@ -10,7 +10,8 @@ from .agent import AgentOpenAI, Change
 from .changes import ChangesStorage
 
 class ReplacmentError(Exception): 
-    pass
+    def __init__(self, *args):
+        super().__init__(*args)
 
 _tmp_dir = './evolve/tmp/'
 def create_tmp_dir(): 
@@ -33,6 +34,8 @@ def write_change(id_: str, change: Change):
     with open(get_path(id_), 'w') as f: 
         policy = _get_def_policy()
         new_policy = policy.replace(change.old_string, change.new_string)
+        if policy == new_policy: 
+            raise ReplacmentError('Note: content of files did not change and stays the same.')
         f.write(new_policy)
 
 def fitness(id_: str, episodes): 
@@ -53,41 +56,40 @@ if __name__ == '__main__':
     held_out = scoring.episode_set(task, holdout, quick=quick, n_jobs=n_jobs)
 
     # search params 
-    iters = 2
+    iters = 16
 
     # search loop 
     agent = AgentOpenAI()
-    results = f'begin! current task is {task}'
+    state = f'begin! current task is {task}'
     storage = ChangesStorage()
     all_changes = [] 
     for i in range(iters): 
-        agent.inj_history(results)
+        agent.inj_history(state)
         proposed_change, _ = agent.next_change() 
         all_changes.extend(proposed_change)
        
         # evaluate fitness of changes 
-        scores = []
+        results: list[str | int] = []
         for change in proposed_change.changes: 
             try: 
                 id_ = hash(change.new_string) # create a hash based on the replacement string 
                 write_change(id_, change)
                 score = fitness(id_, train)
-            except ReplacmentError as e: 
-                score = -1
-            except Exception as e: 
-                score = -2
-                print(str(e))
-            finally: 
-                scores.append(score)
-
+                results.append(score) 
+            # todo maybe delete this 
+            except (ReplacmentError, Exception) as e: 
+                results.append(str(e))
+                
         # return scores for changes 
-        results = 'results: ' + ' '.join([f'change{i}: {score}' for i, score in enumerate(scores)])
+        state = 'results: ' + ' '.join([f'change{i}: {score}' for i, score in enumerate(results)])
 
         print(f'iter: {i}')
         print(proposed_change.reasoning)
         print(f'changes count: {len(proposed_change.changes)}')
-        print(results)
-
+        print([hash(change.new_string) for change in proposed_change.changes])
+        print(state)
+    
+    #del_tmp_dir()
     storage.dump(all_changes)
     print(agent.get_usage())
 

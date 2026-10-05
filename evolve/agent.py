@@ -79,7 +79,7 @@ results: change[0] [score], change[1] [score], ..., change[N-1] [score]
 
 where:
 - the change number is the position of that change in the list you proposed in this iteration, starting from 0;
-- the score is the numerical result of evaluating that change. A score of -1 means the replacement failed, and a score of -2 means an exception was thrown during policy evaluation.
+- the score is the numerical result of evaluating that change. 
 '''.strip()
 
     def get_usage(self) -> dict: 
