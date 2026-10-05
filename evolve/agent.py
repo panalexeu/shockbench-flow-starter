@@ -19,7 +19,7 @@ class AgentOpenAI(Agent):
     def __init__(self): 
         self.client = OpenAI()
         self.model = 'gpt-6-luna'  # gpt-6-luna $0.1 input, $0.01 cached input, $0.125 cache writes, $0.5 output  
-        self.reasoning = 'none' 
+        self.reasoning = 'low' 
         self.cache_mode = 'explicit'
         self.ctx_path = './evolve/context/'
         self.history = self.init_history()
@@ -59,13 +59,19 @@ class AgentOpenAI(Agent):
         
     def get_prefix_context(self) -> str: 
         return F'''
+SUPPLY-SHOCK CHAIN ENVIRONMENT CONTEXT: 
+
 {self._get_root_ctx()}
-        
+
+INSTRUCTIONS: 
+
 You are an AI assistant. Your task is to iteratively improve the RL policy for the supply-shock chain environment.
 
 The initial policy is defined below:
 
 {self._get_init_policy()}
+
+The initial policy is only a minimal working example that shows the required interface. The goal is the highest possible score, not staying close to this example. You are free to propose a completely different policy: redesign the decision logic, use any information available in `config` and `observation`, keep internal state between steps, and so on.
 
 Rules:
 1. Every policy you propose must adhere strictly to the interface of the initial policy.
@@ -79,7 +85,7 @@ results: change[0] [score], change[1] [score], ..., change[N-1] [score]
 
 where:
 - the change number is the position of that change in the list you proposed in this iteration, starting from 0;
-- the score is the numerical result of evaluating that change. 
+- the score is the numerical result of evaluating that change.
 '''.strip()
 
     def get_usage(self) -> dict: 
