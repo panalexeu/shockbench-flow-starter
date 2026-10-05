@@ -17,8 +17,9 @@ _policy_dir = './evolve/policies/' + datetime.datetime.now().strftime('%d-%m-%Y_
 def create_policy_dir(): 
     os.makedirs(_policy_dir, exist_ok=True)
 
+_base_policy_file = './evolve/context/policy.py'
 def _get_def_policy(): 
-    with open('./evolve/context/policy.py', 'r') as f: 
+    with open(_base_policy_file, 'r') as f: 
         return f.read()
 
 def get_path(id_: str) -> str: 
@@ -43,7 +44,7 @@ if __name__ == '__main__':
     create_policy_dir()
 
     # env params 
-    task: str = "tiny"
+    task: str = "small"
     entropy: int = 2004
     train_episodes: int = 16
     holdout: str | int | list[int] = "dev"
@@ -57,7 +58,9 @@ if __name__ == '__main__':
 
     # search loop 
     agent = AgentOpenAI()
-    state = f'begin! current task is {task}'
+    base_policy_score = train.score(_base_policy_file, cpu_budget=True).rss
+    state = f'begin! current task is {task}, base policy score: {base_policy_score}'
+    print(state)
     storage = ChangesStorage()
     all_changes = [] 
     for i in range(iters): 
