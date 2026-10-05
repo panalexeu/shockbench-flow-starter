@@ -22,7 +22,7 @@ def _get_def_policy():
         return f.read()
 
 def get_path(id_: str) -> str: 
-    return _policy_dir + id_ + '.py'
+    return _policy_dir + '/' + id_ + '.py'
 
 def hash(text: str) -> str:
     return hashlib.blake2s(text.encode(), digest_size=6).hexdigest() 
