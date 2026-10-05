@@ -28,6 +28,7 @@ dependencies = [
     "fire ~= 0.7.1",
     "python-dotenv ~= 1.2.2", # `sbf` reads .env
     "openai>=3.24.0",
+    "rich>=15.0.0",
 ]
 
 [project.optional-dependencies]

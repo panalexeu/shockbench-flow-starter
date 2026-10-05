@@ -13,6 +13,147 @@ naive. The package and the board call it RSS.
 
 ---
 
+## The task
+
+An episode is T weeks (26 on Tiny, 52 on Small, 104 on Full). Each week your
+agent chooses how much of each commodity to send along each route (an _action
+slot_: an edge, or the first edge of a sea lane through one or more straits),
+and, for tanker cargo waiting at a strait, whether it leaves by the default
+rule, by your own quantities, or waits. The environment then clips your orders
+to what is in stock and what the routes can carry this week, moves the goods,
+runs the factories and power grids, serves demand and charges the week's cost.
+
+The cost J of an episode is the sum over weeks of freight, war-risk surcharges,
+tariffs, holding (higher for cargo queued at a strait), a penalty for every unit
+of demand not served, disposal and power shed at the grids, minus the value of
+what is left at the end. Lower is better. The disruptions of an episode
+(closures, sanctions, tariffs, conflicts, factory outages) are drawn before it
+starts from a public generator; nothing your agent does changes them.
+
+**What your agent sees: the `standard` regime**, the one the leaderboards use.
+Besides the network as it is this week, your own state and the demand forecast,
+it gives three early signals of disruptions that have not acted yet:
+
+- `warning.score`: an early-warning score per region, pair of rival regions and
+  strait, with a one-week lag;
+- `messages.*`: announcement threads (tariff proposals and final notices,
+  sanction threats, military threats); some are false alarms that never take
+  effect;
+- `pending_prohibitions.*`: announced sanctions not yet in force, with the week
+  each takes effect.
+
+The naive rule that anchors the score sees none of these and ignores
+disruptions, so using them well is where an agent can gain.
+
+## The interface
+
+```python
+class Agent:
+    def __init__(self, config=None):  # once per episode
+        ...
+
+    def act(self, observation):       # once per week
+        return {"flows": flows, "override_qty": override_qty, "release_mode": release_mode}
+```
+
+- `config` is a dict: `static` (the network's tables: `nodes`, `edges`, `lanes`,
+  `commodities`, `action_slots`, `override_slots`, `sinks`, and the whole public
+  instance under `static["instance"]`), `regime`, `T`, `policy_seed` (seed your
+  random generators with it), `layout` (what each position of a dense
+  observation block stands for), `release_modes` and `spaces` (every array's
+  shape and dtype). Nothing hidden is in it.
+- `observation` is a dict of numpy arrays with fixed shapes, keyed by strings
+  (`observation["stock.qty"]`). Every field `x` comes with `x.observed`, 1 where
+  the value is shown this week and 0 where it is hidden or padding. Lists of
+  varying length (shipments in transit, messages) are padded to a fixed size.
+- The action is a dict: `flows` (one quantity per action slot, 0 or more),
+  `override_qty` (one per override slot) and `release_mode` (per strait and
+  tanker commodity: 0 the default release, 1 your `override_qty`, 2 hold). The
+  last two may be left out.
+- `action_mask` is 1 on every slot that may carry goods this week (no sanction
+  on its route). It does not show closures or capacity: read `graph_now.open`
+  (how open each strait is, 1 to 0) and `graph_now.u` (each edge's capacity this
+  week).
+- The nominal weekly flows (the normal plan) are the week-0 shipments of
+  `static["instance"]["initial_state"]["pipeline"]`.
+
+Every field, with its shape, dtype, index set and meaning, is in
+[fields/tiny.md](fields/tiny.md), [fields/small.md](fields/small.md) and
+[fields/full.md](fields/full.md), generated from the installed package by
+`uv run python scripts/fields_docs.py`. The fields that matter most at first:
+
+| key                                           | what it is                                                                                                  |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `week`                                        | the week to decide, 1 to T                                                                                  |
+| `stock.qty`                                   | stock on hand per (node, commodity), rows `layout["stock_slots"]`                                           |
+| `backlog.qty`                                 | unserved demand carried at each market                                                                      |
+| `graph_now.u`, `graph_now.c`, `graph_now.tau` | each edge's capacity, freight cost and lead time this week                                                  |
+| `graph_now.open`                              | each strait's open fraction, rows `layout["chokepoints"]`                                                   |
+| `graph_now.prohibited`, `graph_now.tariff`    | sanctions and tariffs per (edge, commodity)                                                                 |
+| `demand_forecast.qty`                         | the demand forecast for the next 8 weeks                                                                    |
+| `last_week.cost_components`                   | last week's cost by component (freight, war risk, tariff, holding, queue holding, shortage, disposal, shed) |
+| `warning.score`                               | the early-warning scores (`standard` only)                                                                  |
+| `action_mask`, `override_mask`                | the slots you may use this week                                                                             |
+
+Under gymnasium your agent needs the `config` the server builds; `agent_config`
+makes it from the reset:
+
+```python
+import gymnasium as gym
+import shockbench_flow_gym
+from shockbench_flow_agent import agent_config
+
+env = gym.make("ShockBench/Small-v0")
+obs, info = env.reset(options={"episode": 0})
+agent = Agent(agent_config(info["static"], info["policy_seed"], env.unwrapped.layout, obs))
+```
+
+`gym.make` options: `regime` (`"standard"`, the scored one; `"prediction_free"`
+hides the three signals), `dense_reward` (a shaped reward whose sum is still
+minus the cost, up to a constant), `render_mode="rgb_array"`, `entropy` (the
+scenarios' root: 0, the default, is the public dev root; any other integer below
+2\*\*128 is a training root of your own) and `gamma` (the disruption intensity:
+0.62, the default and the scored one, 0.79, 0.95, 0.97). The gymnasium
+environment plays no fallback: an exception in `act` stops your script.
+
+## Small and Full
+
+Small (the public board's) and Full (the private board's) have the same keys as
+Tiny except two blocks, stored compactly:
+
+- `pipeline.*` is grouped: one entry per (edge, commodity, lane, arrival week),
+  its `qty` the total of the shipments.
+- The cargo queued at the straits is one dense array, `queue_lots.qty`, of shape
+  (number of lot keys, T). Row `i` is `config["layout"]["lot_keys"][i]`, a
+  (strait node, commodity, lane, next edge) tuple; column `w - 1` holds the
+  quantity that reached the strait in week `w` and still waits.
+- Tiny's per-lot lists (`queue_lots.lot_id`, `.chokepoint`, `.k`, ...) do not
+  exist there: an agent that reads them raises `KeyError` every week. Test
+  `"lot_keys" in config["layout"]` to tell the layouts apart.
+
+Read every shape from `config["spaces"]`, never from Tiny's tables.
+
+## Common mistakes
+
+- **Indexing the observation by position.** `observation[2]` raises `KeyError`:
+  it is a dict keyed by strings.
+- **`__init__` without `config`.** The server calls `Agent(config)`;
+  `def __init__(self)` raises, and naive plays the whole episode.
+- **Returning the wrong thing.** `act` returns a dict with at least `flows`, a
+  float array with one entry per action slot (20, 108 or 395); `release_mode` is
+  an array, not a scalar.
+- **Flows on sanctioned routes.** Entries on a prohibited slot, and negative or
+  non-finite quantities, are dropped (the rest of the action stands). Multiply
+  `flows` by `observation["action_mask"]`.
+- **Trusting `action_mask` for closures.** What you send into a closed strait
+  waits in its queue: check `graph_now.open`.
+- **Imports the server lacks.** Only the standard library, numpy, scipy and
+  torch exist there. `sbf check` fails an agent that imports anything else.
+- **Files next to `agent.py`.** Load them relative to it:
+  `Path(__file__).parent / "weights.npz"`.
+
+---
+
 Generated for instance `chokepoint-tiny` (T = 26, regime `standard`) by `uv run python scripts/fields_docs.py`.
 
 **Observation** (`act(observation)`): a dict of numpy arrays. Every key below except `action_mask.observed` and `override_mask.observed` is followed by `<key>.observed`, an int8 array of the same shape, 1 where the value is present and 0 where it is unobserved or padding (the value is then 0).
