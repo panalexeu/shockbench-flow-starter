@@ -8,7 +8,7 @@ class Change(BaseModel):
     string: str
     string_replace: str 
 
-class Output(BaseModel): 
+class Changes(BaseModel): 
     reasoning: str
     changes: list[Change]
 
@@ -25,11 +25,11 @@ class AgentOpenAI(Agent):
         self.history = self.init_history()
         self.input_tokens, self.output_tokens, self.cached_tokens,  self.cache_write_tokens = 0, 0, 0, 0
 
-    def next_changes(self) -> Output:
+    def next_changes(self) -> Changes:
         res = self.client.responses.parse(
             model=self.model, 
             reasoning={'effort': self.reasoning},
-            text_format=Output,
+            text_format=Changes,
             input=self.history, 
             prompt_cache_options={'mode': self.cache_mode}
         ) 

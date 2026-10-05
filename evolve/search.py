@@ -2,6 +2,7 @@ from rich import print
 from dotenv import load_dotenv
 
 from .agent import AgentOpenAI
+from .changes import ChangesStorage
 
 if __name__ == '__main__': 
     load_dotenv()
@@ -11,8 +12,14 @@ if __name__ == '__main__':
 
     # search loop 
     agent = AgentOpenAI()
-    agent.inj_history('begin!')
+    results = 'begin!'
+    storage = ChangesStorage()
+    all_changes = [] 
     for i in range(iters): 
-        changes, usage = agent.next_changes() 
-        breakpoint()
-        agent.inj_history('')
+        agent.inj_history(results)
+        changes, _ = agent.next_changes() 
+        all_changes.extend(changes)
+        results = 'results: '
+    storage.dump(all_changes)
+
+    print(agent.get_usage())
