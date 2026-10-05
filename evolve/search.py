@@ -1,6 +1,6 @@
 import os 
-import shutil
 import hashlib 
+import datetime
 
 from rich import print 
 from dotenv import load_dotenv
@@ -13,22 +13,19 @@ class ReplacmentError(Exception):
     def __init__(self, *args):
         super().__init__(*args)
 
-_tmp_dir = './evolve/tmp/'
-def create_tmp_dir(): 
-    os.makedirs(_tmp_dir, exist_ok=True)
-
-def del_tmp_dir(): 
-    shutil.rmtree(_tmp_dir) 
+_policy_dir = './evolve/policies/' + datetime.datetime.now().strftime('%d-%m-%Y_%H-%M-%S')
+def create_policy_dir(): 
+    os.makedirs(_policy_dir, exist_ok=True)
 
 def _get_def_policy(): 
     with open('./evolve/context/policy.py', 'r') as f: 
         return f.read()
 
 def get_path(id_: str) -> str: 
-    return _tmp_dir + id_ + '.py'
+    return _policy_dir + id_ + '.py'
 
 def hash(text: str) -> str:
-    return hashlib.sha256(text.encode()).hexdigest()
+    return hashlib.blake2s(text.encode(), digest_size=6).hexdigest() 
 
 def write_change(id_: str, change: Change):
     with open(get_path(id_), 'w') as f: 
@@ -43,7 +40,7 @@ def fitness(id_: str, episodes):
 
 if __name__ == '__main__': 
     load_dotenv()
-    create_tmp_dir()
+    create_policy_dir()
 
     # env params 
     task: str = "tiny"
@@ -56,7 +53,7 @@ if __name__ == '__main__':
     held_out = scoring.episode_set(task, holdout, quick=quick, n_jobs=n_jobs)
 
     # search params 
-    iters = 16
+    iters = 32
 
     # search loop 
     agent = AgentOpenAI()
@@ -89,7 +86,4 @@ if __name__ == '__main__':
         print([hash(change.new_string) for change in proposed_change.changes])
         print(state)
     
-    #del_tmp_dir()
-    storage.dump(all_changes)
     print(agent.get_usage())
-
