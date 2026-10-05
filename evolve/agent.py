@@ -5,8 +5,8 @@ from pydantic import BaseModel
 
 
 class Change(BaseModel): 
-    string: str
-    string_replace: str 
+    old_string: str
+    new_string: str 
 
 class Changes(BaseModel): 
     reasoning: str
@@ -56,7 +56,7 @@ class AgentOpenAI(Agent):
     def _get_root_ctx(self) -> str: 
         with open(self.ctx_path + 'ROOT.md', 'r') as f: 
             return f.read() 
-
+        
     def get_prefix_context(self) -> str: 
         return F'''
 {self._get_root_ctx()}
@@ -71,6 +71,7 @@ Rules:
 1. Every policy you propose must adhere strictly to the interface of the initial policy.
 2. You may propose multiple changes in a single iteration, for example to compare several alternative policy changes or to sweep over policy parameters.
 3. Structure your response in this order: first your reasoning, then your proposed changes.
+4. Every proposed change is applied to the initial policy file. The file is not updated between iterations, so changes do not accumulate.
 
 Each proposed change will be evaluated, and its score will be returned to you in the following format so that you can continue improving the policy:
 
@@ -78,7 +79,7 @@ results: change[0] [score], change[1] [score], ..., change[N-1] [score]
 
 where:
 - the change number is the position of that change in the list you proposed in this iteration, starting from 0;
-- the score is the numerical result of evaluating that change. A score of -1 means the change failed and an exception was thrown.
+- the score is the numerical result of evaluating that change. A score of -1 means the replacement failed, and a score of -2 means an exception was thrown during policy evaluation.
 '''.strip()
 
     def get_usage(self) -> dict: 
