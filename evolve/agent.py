@@ -1,11 +1,16 @@
 from abc import ABC, abstractmethod
 
 from openai import OpenAI
-from pydantic import BaseModel 
+from pydantic import BaseModel
+
+
+class Change(BaseModel): 
+    string: str
+    string_replace: str 
 
 class Output(BaseModel): 
-    text: str
-    changes: list[str] | None
+    reasoning: str
+    changes: list[Change]
 
 class Agent(ABC):
     pass 
@@ -16,9 +21,10 @@ class AgentOpenAI(Agent):
         self.model = 'gpt-6-luna'  # gpt-6-luna $0.1 input, $0.01 cached input, $0.125 cache writes, $0.5 output  
         self.reasoning = 'none' 
         self.cache_mode = 'explicit'
+        self.ctx_path = './evolve/context/'
         self.history = self.init_history()
         self.input_tokens, self.output_tokens, self.cached_tokens,  self.cache_write_tokens = 0, 0, 0, 0
-    
+
     def next_changes(self) -> Output:
         res = self.client.responses.parse(
             model=self.model, 
@@ -43,8 +49,25 @@ class AgentOpenAI(Agent):
     def inj_history(self, msg: str): 
         self.history.append({'role': 'user', 'content': msg}) 
 
+    def _get_init_policy(self) -> str :
+        with open(self.ctx_path + 'policy.py', 'r') as f: 
+            return f.read() 
+
     def get_prefix_context(self) -> str: 
-        return 'You are a helpful AI assistant. Your task is to remember user name.'
+        return F'''
+You are an AI assistant. Your task is to iteratively improve the RL policy for the supply-shock chain environment.
+
+The initial policy is defined below:
+
+{self._get_init_policy()}
+
+Rules:
+1. Every policy you propose must adhere strictly to the interface of the initial policy.
+2. You may propose multiple changes in a single iteration, for example to compare several alternative policy changes or to sweep over policy parameters.
+3. Structure your response in this order: first your reasoning, then your proposed changes.
+
+Each proposed change will be evaluated, and its score will be returned to you so that you can continue improving the policy.
+'''.strip()
 
     def get_usage(self) -> dict: 
         return {
