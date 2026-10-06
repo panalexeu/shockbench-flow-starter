@@ -85,9 +85,11 @@ if __name__ == '__main__':
     provide_pool = False      # wether to provide candidates from the best candidates pool to the lm
     pool_size = 5             # how many pool candidates are provided to the lm 
     score_init_policy = False
+    t = 1.5 
+    top_p = 0.9
 
     # search loop 
-    agent = AgentOpenAI()
+    agent = AgentOpenAI(t, top_p)
     if provide_pool: 
         pool = get_candidates_pool(pool_size)
         agent.inj_history(f'below are the candidates that scored the best so far: {pool}')

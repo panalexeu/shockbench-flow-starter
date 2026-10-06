@@ -16,8 +16,10 @@ class Agent(ABC):
     pass 
 
 class AgentOpenAI(Agent): 
-    def __init__(self): 
+    def __init__(self, t: float = 1.0, top_p: float =0.98): 
         self.client = OpenAI()
+        self.t = t
+        self.top_p = top_p
         self.model = 'gpt-6-luna'  # gpt-6-luna $0.1 input, $0.01 cached input, $0.125 cache writes, $0.5 output  
         self.reasoning = 'none' 
         self.cache_mode = 'implicit'
@@ -31,7 +33,9 @@ class AgentOpenAI(Agent):
             reasoning={'effort': self.reasoning},
             text_format=Changes,
             input=self.history, 
-            prompt_cache_options={'mode': self.cache_mode}
+            prompt_cache_options={'mode': self.cache_mode}, 
+            temperature=self.t, 
+            top_p=self.top_p
         ) 
         self.upd_history(res.output)
         self.upd_usage(res.usage)
