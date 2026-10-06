@@ -59,7 +59,7 @@ if __name__ == '__main__':
     # search loop 
     agent = AgentOpenAI()
     base_policy_score = train.score(_base_policy_file, cpu_budget=True).rss
-    state = f'begin! current task is {task}, base policy score: {base_policy_score}'
+    state = f'begin! current task is {task}, base policy score: {base_policy_score:.2f}'
     print(state)
     storage = ChangesStorage()
     all_changes = [] 
