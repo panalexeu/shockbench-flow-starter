@@ -1,3 +1,4 @@
+# TODO make prompts interchangable along with caching handling!
 from abc import abstractmethod
 
 from openai import OpenAI
@@ -32,8 +33,9 @@ class BaseAgent():
     def _get_root_ctx(self) -> str: 
         with open(self.ctx_path + 'ROOT.md', 'r') as f: 
             return f.read() 
-        
-    def get_prefix_context(self) -> str: 
+
+    # older iterative optimization version
+    def get_prefix_context_old(self) -> str: 
         return F'''
 SUPPLY-SHOCK CHAIN ENVIRONMENT CONTEXT: 
 
@@ -65,6 +67,28 @@ where:
 - the score is the numerical result of evaluating that change.
 '''.strip()
 
+    # sample optimization version 
+    def get_prefix_context(self) -> str: 
+        return F'''
+SUPPLY-SHOCK CHAIN ENVIRONMENT CONTEXT: 
+
+{self._get_root_ctx()}
+
+INSTRUCTIONS: 
+
+You are an AI assistant. Your task is to iteratively improve the RL policy for the supply-shock chain environment.
+
+You are provided with a set of policies along with their scores. The first line of each policy is its score in the `# {{score}}` format (higher is better). Your task is to propose new policies that score higher than the provided ones.
+
+The provided policies are only examples. The goal is the highest possible score, not staying close to them. You are free to propose a completely different policy: redesign the decision logic, use any information available in `config` and `observation`, keep internal state between steps, and so on.
+
+Rules:
+1. Every policy you propose must adhere strictly to the interface of the provided policies.
+2. You may propose multiple changes in a single iteration, for example to compare several alternative policy changes or to sweep over policy parameters.
+3. Structure your response in this order: first your reasoning, then your proposed changes.
+4. Every proposed change is the full content of a new policy file (only Python source, no Markdown code fences). Changes do not accumulate between iterations.
+'''.strip()
+
 class AgentOpenAI(BaseAgent): 
     def __init__(self, t: float = 1.0, top_p: float = 0.98): 
         super().__init__(t,top_p)
@@ -73,7 +97,7 @@ class AgentOpenAI(BaseAgent):
         self.top_p = top_p
         self.model = 'gpt-6-luna'  # gpt-6-luna $0.1 input, $0.01 cached input, $0.125 cache writes, $0.5 output  
         self.reasoning = 'none' 
-        self.cache_mode = 'implicit'
+        self.cache_mode = 'explicit'
         self.ctx_path = './evolve/context/'
         self.history = self.init_history()
         self.input_tokens, self.output_tokens, self.cached_tokens,  self.cache_write_tokens = 0, 0, 0, 0
