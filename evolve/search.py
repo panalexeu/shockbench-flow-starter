@@ -24,7 +24,7 @@ def create_candidate_dir():
 
 def get_candidates_pool(size: int) -> str: 
     files_str = ''
-    paths = [path for path in Path(_candidates_dir).iterdir()][:size]
+    paths = [path for path in Path(_candidates_dir).iterdir() if path.is_file()][:size]
     for path in paths: 
         with open(path, 'r') as f:
             files_str += f.read() + '\n\n'
@@ -80,18 +80,22 @@ if __name__ == '__main__':
 
     # TODO make this cli 
     # search params  
-    iters = 16          # how many iterations a lm is provided to improve the policy  
-    keep_candidates = 1 # how many best scoring candidates are stored in the candidates pool after all iterations are completed 
-    provide_pool = True # wether to provide candidates from the best candidates pool to the lm
-    pool_size = 5       # how many pool candidates are provided to the lm 
+    iters = 16                # how many iterations a lm is provided to improve the policy  
+    keep_candidates = 1       # how many best scoring candidates are stored in the candidates pool after all iterations are completed 
+    provide_pool = False      # wether to provide candidates from the best candidates pool to the lm
+    pool_size = 5             # how many pool candidates are provided to the lm 
+    score_init_policy = False
 
     # search loop 
     agent = AgentOpenAI()
     if provide_pool: 
         pool = get_candidates_pool(pool_size)
         agent.inj_history(f'below are the candidates that scored the best so far: {pool}')
-    base_policy_score = train.score(_base_policy_file, cpu_budget=True).rss
-    state = f'begin! current task is {task}, base policy score: {base_policy_score:.2f}'; print(state)
+    state = f'begin! current task is {task}'
+    if score_init_policy: 
+        init_policy_score = train.score(_base_policy_file, cpu_budget=True).rss
+        state += f'init policy score: {init_policy_score:.2f}'
+
     all_changes = [] 
     for i in range(iters): 
         agent.inj_history(state)
