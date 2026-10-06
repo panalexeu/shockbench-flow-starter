@@ -61,7 +61,8 @@ def write_change(id_: str, change: Change):
             raise ReplacmentError('Content of the files did not change and stays the same.')
 
 def fitness(id_: str, episodes): 
-    return episodes.score(get_path(id_), cpu_budget=True).rss
+    res = episodes.score(get_path(id_), cpu_budget=True)
+    return res.rss
 
 if __name__ == '__main__': 
     load_dotenv()
