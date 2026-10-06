@@ -16,7 +16,7 @@ class Agent(ABC):
     pass 
 
 class AgentOpenAI(Agent): 
-    def __init__(self, t: float = 1.0, top_p: float =0.98): 
+    def __init__(self, t: float = 1.0, top_p: float = 0.98): 
         self.client = OpenAI()
         self.t = t
         self.top_p = top_p
