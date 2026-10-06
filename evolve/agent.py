@@ -82,6 +82,7 @@ Rules:
 2. You may propose multiple changes in a single iteration, for example to compare several alternative policy changes or to sweep over policy parameters.
 3. Structure your response in this order: first your reasoning, then your proposed changes.
 4. Every proposed change is applied to the initial policy file. The file is not updated between iterations, so changes do not accumulate.
+5. In each iteration, at least one proposed change must try a fundamentally different strategy from everything tried so far, not a parameter tweak of an earlier idea.
 
 Each proposed change will be evaluated, and its score will be returned to you in the following format so that you can continue improving the policy:
 
