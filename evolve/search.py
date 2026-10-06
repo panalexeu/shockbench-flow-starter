@@ -42,7 +42,7 @@ def hash(text: str) -> str:
     return hashlib.blake2s(text.encode(), digest_size=6).hexdigest() 
 
 def add_score(id_: str, score: float,):  
-    score_str = f'# {score}'
+    score_str = f'# {score}\n'
     with open(get_path(id_), 'r') as f: lines = f.readlines()
     lines.insert(0, score_str)
     with open(get_path(id_), 'w') as f: f.write(''.join(lines)) 
