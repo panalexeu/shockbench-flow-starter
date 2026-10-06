@@ -19,7 +19,7 @@ class AgentOpenAI(Agent):
     def __init__(self): 
         self.client = OpenAI()
         self.model = 'gpt-6-luna'  # gpt-6-luna $0.1 input, $0.01 cached input, $0.125 cache writes, $0.5 output  
-        self.reasoning = 'low' 
+        self.reasoning = 'none' 
         self.cache_mode = 'implicit'
         self.ctx_path = './evolve/context/'
         self.history = self.init_history()
