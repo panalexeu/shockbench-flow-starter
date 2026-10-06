@@ -1,8 +1,7 @@
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 
 from openai import OpenAI
 from pydantic import BaseModel
-
 
 class Change(BaseModel): 
     old_string: str
@@ -12,46 +11,22 @@ class Changes(BaseModel):
     reasoning: str
     changes: list[Change]
 
-class Agent(ABC):
-    pass 
-
-class AgentOpenAI(Agent): 
-    def __init__(self, t: float = 1.0, top_p: float = 0.98): 
-        self.client = OpenAI()
+class BaseAgent():
+    def __init__(self, t: float, top_p: float):
         self.t = t
         self.top_p = top_p
-        self.model = 'gpt-6-luna'  # gpt-6-luna $0.1 input, $0.01 cached input, $0.125 cache writes, $0.5 output  
-        self.reasoning = 'none' 
-        self.cache_mode = 'implicit'
-        self.ctx_path = './evolve/context/'
-        self.history = self.init_history()
-        self.input_tokens, self.output_tokens, self.cached_tokens,  self.cache_write_tokens = 0, 0, 0, 0
 
-    def next_change(self) -> Changes:
-        res = self.client.responses.parse(
-            model=self.model, 
-            reasoning={'effort': self.reasoning},
-            text_format=Changes,
-            input=self.history, 
-            prompt_cache_options={'mode': self.cache_mode}, 
-            temperature=self.t, 
-            top_p=self.top_p
-        ) 
-        self.upd_history(res.output)
-        self.upd_usage(res.usage)
-        return res.output_parsed, self.get_usage()
+    @abstractmethod
+    def next_change(self) -> Changes: 
+        pass
 
-    def init_history(self) -> list: 
-        hist =[
-            {'role': 'developer', 'content': [{'type': 'input_text', 'text': self.get_prefix_context(), 'prompt_cache_breakpoint': { "mode": "explicit" }}]}
-        ] 
-        return hist
-
-    def upd_history(self, out): 
-        self.history += out
-
+    @abstractmethod
     def inj_history(self, msg: str): 
-        self.history.append({'role': 'user', 'content': msg}) 
+        pass 
+
+    @abstractmethod
+    def get_usage() -> dict: 
+        pass 
 
     def _get_init_policy(self) -> str :
         with open(self.ctx_path + 'policy.py', 'r') as f: 
@@ -93,6 +68,45 @@ where:
 - the score is the numerical result of evaluating that change.
 '''.strip()
 
+class AgentOpenAI(BaseAgent): 
+    def __init__(self, t: float = 1.0, top_p: float = 0.98): 
+        super().__init__(t,top_p)
+        self.client = OpenAI()
+        self.t = t
+        self.top_p = top_p
+        self.model = 'gpt-6-luna'  # gpt-6-luna $0.1 input, $0.01 cached input, $0.125 cache writes, $0.5 output  
+        self.reasoning = 'none' 
+        self.cache_mode = 'implicit'
+        self.ctx_path = './evolve/context/'
+        self.history = self.init_history()
+        self.input_tokens, self.output_tokens, self.cached_tokens,  self.cache_write_tokens = 0, 0, 0, 0
+
+    def next_change(self) -> Changes:
+        res = self.client.responses.parse(
+            model=self.model, 
+            reasoning={'effort': self.reasoning},
+            text_format=Changes,
+            input=self.history, 
+            prompt_cache_options={'mode': self.cache_mode}, 
+            temperature=self.t, 
+            top_p=self.top_p
+        ) 
+        self.upd_history(res.output)
+        self.upd_usage(res.usage)
+        return res.output_parsed, self.get_usage()
+
+    def init_history(self) -> list: 
+        hist =[
+            {'role': 'developer', 'content': [{'type': 'input_text', 'text': self.get_prefix_context(), 'prompt_cache_breakpoint': { "mode": "explicit" }}]}
+        ] 
+        return hist
+
+    def upd_history(self, out): 
+        self.history += out
+
+    def inj_history(self, msg: str): 
+        self.history.append({'role': 'user', 'content': msg}) 
+
     def get_usage(self) -> dict: 
         return {
             'input_tokens': self.input_tokens, 
@@ -106,3 +120,4 @@ where:
         self.output_tokens += usage.output_tokens 
         self.cached_tokens += usage.input_tokens_details.cached_tokens 
         self.cache_write_tokens += usage.input_tokens_details.cache_write_tokens 
+
