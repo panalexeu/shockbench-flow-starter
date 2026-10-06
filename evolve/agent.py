@@ -1,6 +1,7 @@
 from abc import abstractmethod
 
 from openai import OpenAI
+from anthropic import Anthropic
 from pydantic import BaseModel
 
 class Change(BaseModel): 
@@ -121,3 +122,56 @@ class AgentOpenAI(BaseAgent):
         self.cached_tokens += usage.input_tokens_details.cached_tokens 
         self.cache_write_tokens += usage.input_tokens_details.cache_write_tokens 
 
+class AgentAnthropic(BaseAgent):
+    def __init__(self, t: float = 1.0, top_p: float = 0.98):
+        super().__init__(t,top_p)
+        self.client = Anthropic()
+        self.model = 'claude-haiku-4-5'  # claude-haiku-4-5 $1 input, $0.1 cached input, $1.25 cache writes (5m), $5 output; no thinking unless enabled
+        self.max_tokens = 16000          # required by the api; above ~21k the sdk requires streaming
+        self.ctx_path = './evolve/context/'
+        self.system = self.init_system()
+        self.history = []
+        self.input_tokens, self.output_tokens, self.cached_tokens,  self.cache_write_tokens = 0, 0, 0, 0
+
+    def next_change(self) -> Changes:
+        res = self.client.beta.messages.parse(
+            model=self.model,
+            max_tokens=self.max_tokens,
+            system=self.system,
+            messages=self.history,
+            output_format=Changes,
+            cache_control={'type': 'ephemeral'},  # implicit: moves the breakpoint to the end of the history every call
+            temperature=self.t,                   # top_p is not sent: claude 4.5 models take temperature or top_p, not both
+        )
+        if res.stop_reason in ('refusal', 'max_tokens'):
+            raise RuntimeError(f'claude stopped with {res.stop_reason}: {res.stop_details}')
+        self.upd_history(res.content)
+        self.upd_usage(res.usage)
+        return res.parsed_output, self.get_usage()
+
+    def init_system(self) -> list:
+        # explicit: the fixed prefix (environment, base policy, rules) is cached on its own
+        return [{'type': 'text', 'text': self.get_prefix_context(), 'cache_control': {'type': 'ephemeral'}}]
+
+    def upd_history(self, content):
+        # blocks go back unchanged (thinking signatures included), minus the SDK-only parsed_output
+        blocks = [b.to_dict() for b in content]
+        for b in blocks: b.pop('parsed_output', None)
+        self.history.append({'role': 'assistant', 'content': blocks})
+
+    def inj_history(self, msg: str):
+        self.history.append({'role': 'user', 'content': msg})
+
+    def get_usage(self) -> dict:
+        return {
+            'input_tokens': self.input_tokens,
+            'output_tokens': self.output_tokens,
+            'cached_tokens': self.cached_tokens,
+            'cache_write_tokens': self.cache_write_tokens
+        }
+
+    def upd_usage(self, usage):
+        self.input_tokens += usage.input_tokens
+        self.output_tokens += usage.output_tokens
+        self.cached_tokens += usage.cache_read_input_tokens or 0
+        self.cache_write_tokens += usage.cache_creation_input_tokens or 0
