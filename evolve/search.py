@@ -2,6 +2,7 @@ import os
 import shutil 
 import hashlib 
 import datetime
+from pathlib import Path
 
 from rich import print 
 from dotenv import load_dotenv
@@ -21,6 +22,14 @@ _candidates_dir = './evolve/policies/candidate_pool'
 def create_candidate_dir(): 
     os.makedirs(_candidates_dir, exist_ok=True)
 
+def get_candidates_pool(size: int) -> str: 
+    files_str = ''
+    paths = [path for path in Path(_candidates_dir).iterdir()][:size]
+    for path in paths: 
+        with open(path, 'r') as f:
+            files_str += f.read() + '\n\n'
+    return files_str
+
 _base_policy_file = './evolve/context/policy.py'
 def _get_def_policy(): 
     with open(_base_policy_file, 'r') as f: 
@@ -36,7 +45,7 @@ def add_score(id_: str, score: float,):
     score_str = f'# {score}'
     with open(get_path(id_), 'r') as f: lines = f.readlines()
     lines.insert(0, score_str)
-    with open(get_path(id_), 'w') as f: f.write('\n'.join(lines)) 
+    with open(get_path(id_), 'w') as f: f.write(''.join(lines)) 
 
 def get_score(id_: str) -> float: 
     with open(get_path(id_), 'r') as f: lines = f.readlines()
@@ -47,9 +56,9 @@ def write_change(id_: str, change: Change):
     with open(get_path(id_), 'w') as f: 
         policy = _get_def_policy()
         new_policy = policy.replace(change.old_string, change.new_string)
-        if policy == new_policy: 
-            raise ReplacmentError('Content of files did not change and stays the same.')
         f.write(new_policy)
+        if policy == new_policy: 
+            raise ReplacmentError('Content of the files did not change and stays the same.')
 
 def fitness(id_: str, episodes): 
     return episodes.score(get_path(id_), cpu_budget=True).rss
@@ -69,15 +78,20 @@ if __name__ == '__main__':
     train = scoring.episode_set(task, train_episodes, quick=quick, entropy=entropy, n_jobs=n_jobs)
     held_out = scoring.episode_set(task, holdout, quick=quick, n_jobs=n_jobs)
 
-    # search params 
-    iters = 2  # how many iterations lm is provided to improve the policy  
-    keep_candidates = 1 # how many best scoring candidates are stored in candidate the pool after iterations are completed 
+    # TODO make this cli 
+    # search params  
+    iters = 16          # how many iterations a lm is provided to improve the policy  
+    keep_candidates = 1 # how many best scoring candidates are stored in the candidates pool after all iterations are completed 
+    provide_pool = True # wether to provide candidates from the best candidates pool to the lm
+    pool_size = 5       # how many pool candidates are provided as an example  
 
     # search loop 
     agent = AgentOpenAI()
+    if provide_pool: 
+        pool = get_candidates_pool(pool_size)
+        agent.inj_history(f'below are the candidates that scored the best so far: {pool}')
     base_policy_score = train.score(_base_policy_file, cpu_budget=True).rss
-    state = f'begin! current task is {task}, base policy score: {base_policy_score:.2f}'
-    print(state)
+    state = f'begin! current task is {task}, base policy score: {base_policy_score:.2f}'; print(state)
     all_changes = [] 
     for i in range(iters): 
         agent.inj_history(state)
@@ -93,13 +107,15 @@ if __name__ == '__main__':
                 score = fitness(id_, train)
                 add_score(id_, score)
                 results.append(score) 
-            # todo maybe delete this 
             except (ReplacmentError, Exception) as e: 
+                score = -1
+                add_score(id_, score)
                 results.append(str(e))
                 
-        # return scores for changes 
+        # update  state with changes scores 
         state = 'results: ' + ' '.join([f'change{i}: {res:.2f}' if isinstance(res, float) else f'change{i}: {res}' for i, res in enumerate(results)])
 
+        # log
         print(f'iter: {i}')
         print(proposed_change.reasoning)
         print(f'changes count: {len(proposed_change.changes)}')
