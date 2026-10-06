@@ -83,7 +83,7 @@ if __name__ == '__main__':
     iters = 16          # how many iterations a lm is provided to improve the policy  
     keep_candidates = 1 # how many best scoring candidates are stored in the candidates pool after all iterations are completed 
     provide_pool = True # wether to provide candidates from the best candidates pool to the lm
-    pool_size = 5       # how many pool candidates are provided as an example  
+    pool_size = 5       # how many pool candidates are provided to the lm 
 
     # search loop 
     agent = AgentOpenAI()
