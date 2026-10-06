@@ -4,13 +4,9 @@ from openai import OpenAI
 from anthropic import Anthropic
 from pydantic import BaseModel
 
-class Change(BaseModel): 
-    old_string: str
-    new_string: str 
-
 class Changes(BaseModel): 
     reasoning: str
-    changes: list[Change]
+    changes: list[str]
 
 class BaseAgent():
     def __init__(self, t: float, top_p: float):
@@ -35,8 +31,7 @@ class BaseAgent():
 
     def _get_root_ctx(self) -> str: 
         with open(self.ctx_path + 'ROOT.md', 'r') as f: 
-            #return f.read() 
-            return ''
+            return f.read() 
         
     def get_prefix_context(self) -> str: 
         return F'''
@@ -58,7 +53,7 @@ Rules:
 1. Every policy you propose must adhere strictly to the interface of the initial policy.
 2. You may propose multiple changes in a single iteration, for example to compare several alternative policy changes or to sweep over policy parameters.
 3. Structure your response in this order: first your reasoning, then your proposed changes.
-4. Every proposed change is applied to the initial policy file. The file is not updated between iterations, so changes do not accumulate.
+4. Every proposed change is the full content of a new policy file (only Python source, no Markdown code fences). Changes do not accumulate between iterations.
 5. In each iteration, at least one proposed change must try a fundamentally different strategy from everything tried so far, not a parameter tweak of an earlier idea.
 
 Each proposed change will be evaluated, and its score will be returned to you in the following format so that you can continue improving the policy:

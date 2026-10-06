@@ -8,7 +8,7 @@ from rich import print
 from dotenv import load_dotenv
 from sbf_starter import  scoring
 
-from .agent import AgentOpenAI, AgentAnthropic, Change
+from .agent import AgentOpenAI, AgentAnthropic
 
 class ReplacmentError(Exception): 
     def __init__(self, *args):
@@ -52,13 +52,9 @@ def get_score(id_: str) -> float:
     score = float(lines[0].lstrip("#").strip())
     return score 
 
-def write_change(id_: str, change: Change):
+def write_change(id_: str, change: str):
     with open(get_path(id_), 'w') as f: 
-        policy = _get_def_policy()
-        new_policy = policy.replace(change.old_string, change.new_string)
-        f.write(new_policy)
-        if policy == new_policy: 
-            raise ReplacmentError('Content of the files did not change and stays the same.')
+        f.write(change)
 
 def fitness(id_: str, episodes): 
     res = episodes.score(get_path(id_), cpu_budget=True)
@@ -110,7 +106,7 @@ if __name__ == '__main__':
         results: list[str | int] = []
         for change in proposed_change.changes: 
             try: 
-                id_ = hash(change.new_string) # create a hash based on the replacement string 
+                id_ = hash(change) # create a hash based on the replacement string 
                 write_change(id_, change)
                 score = fitness(id_, train)
                 add_score(id_, score)
@@ -127,14 +123,14 @@ if __name__ == '__main__':
         print(f'iter: {i}')
         print(proposed_change.reasoning)
         print(f'changes count: {len(proposed_change.changes)}')
-        print([hash(change.new_string) for change in proposed_change.changes])
+        print([hash(change) for change in proposed_change.changes])
         print(state)
         print(agent.get_usage())
 
     # save the best candidates into the candidates pool 
     changes_dict = {} 
     for change in all_changes: 
-        id_ = hash(change.new_string)
+        id_ = hash(change)
         score = get_score(id_) 
         changes_dict[id_] = score 
     sorted_changes = sorted(changes_dict.items(), key=lambda kv: kv[1], reverse=True)
