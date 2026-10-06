@@ -8,7 +8,7 @@ from rich import print
 from dotenv import load_dotenv
 from sbf_starter import  scoring
 
-from .agent import AgentOpenAI, Change
+from .agent import AgentOpenAI, AgentAnthropic, Change
 
 class ReplacmentError(Exception): 
     def __init__(self, *args):
@@ -91,6 +91,7 @@ if __name__ == '__main__':
 
     # search loop 
     agent = AgentOpenAI(t, top_p)
+    agent = AgentAnthropic(t, top_p)
     if provide_pool: 
         pool = get_candidates_pool(pool_size)
         agent.inj_history(f'below are the candidates that scored the best so far: {pool}')

@@ -35,7 +35,8 @@ class BaseAgent():
 
     def _get_root_ctx(self) -> str: 
         with open(self.ctx_path + 'ROOT.md', 'r') as f: 
-            return f.read() 
+            #return f.read() 
+            return ''
         
     def get_prefix_context(self) -> str: 
         return F'''
@@ -141,7 +142,7 @@ class AgentAnthropic(BaseAgent):
             messages=self.history,
             output_format=Changes,
             cache_control={'type': 'ephemeral'},  # implicit: moves the breakpoint to the end of the history every call
-            temperature=self.t,                   # top_p is not sent: claude 4.5 models take temperature or top_p, not both
+            extra_body={'temperature': self.t},   # sdk 1.x dropped sampling args, haiku 4.5 still accepts them; top_p is not sent: 4.5 models take one or the other
         )
         if res.stop_reason in ('refusal', 'max_tokens'):
             raise RuntimeError(f'claude stopped with {res.stop_reason}: {res.stop_details}')
