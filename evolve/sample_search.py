@@ -58,9 +58,18 @@ def write_change(id_: str, change: str):
     with open(get_path(id_), 'w') as f: 
         f.write(change)
 
-def fitness(id_: str, episodes): 
+class PolicyError(Exception):
+    pass
+
+def fitness(id_: str, episodes) -> tuple[float, str | None]:
+    # the scorer never raises: a crashed or malformed week is played by the naive rule, so read its fallback counts
     res = episodes.score(get_path(id_), cpu_budget=True)
-    return res.rss
+    if res.fallback_weeks > res.cpu_weeks:
+        row = next(r for r in res.rows if r['first_error'])
+        raise PolicyError(f"{res.fallback_weeks - res.cpu_weeks} of {res.weeks} weeks crashed, "
+                          f"first: episode {row['episode']}, {row['first_error']}")
+    note = f'{res.cpu_weeks} of {res.weeks} weeks over the CPU budget' if res.cpu_weeks else None
+    return res.rss, note
 
 def load_policies() -> list[str]: 
     policies = []
@@ -123,7 +132,7 @@ if __name__ == '__main__':
     # TODO make this cli 
     # search params  
     iters = 12  
-    alpha_model = True
+    alpha_model = False
     alpha = 0.25                 
     alpha_i = int(iters / (iters * alpha))
     sample_n = 3
@@ -162,8 +171,8 @@ if __name__ == '__main__':
             id_ = hash(change)
             write_change(id_, change)
             try:
-                score = fitness(id_, train)
-                add_score(id_, score, None)
+                score, note = fitness(id_, train)
+                add_score(id_, score, note)
                 all_policies.append(change)
             except (Exception) as e: 
                 score = -999 
