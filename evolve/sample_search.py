@@ -140,12 +140,12 @@ if __name__ == '__main__':
 
     # TODO make this cli 
     # search params  
-    iters = 24  
-    alpha_model = True
+    iters = 32
+    alpha_model = False
     alpha = 0.25                 
     alpha_i = int(iters / (iters * alpha))
     sample_n = 3
-    sample_e = 1 
+    sample_e = 2 
     sample_t = 1.0
     lm_t = 1.0
     top_p = 0.98
