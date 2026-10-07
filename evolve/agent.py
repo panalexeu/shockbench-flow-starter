@@ -89,6 +89,7 @@ Rules:
 2. You may propose multiple changes in a single iteration, for example to compare several alternative policy changes or to sweep over policy parameters.
 3. Structure your response in this order: first your reasoning, then your proposed changes.
 4. Every proposed change is the full content of a new policy file (only Python source, no Markdown code fences). Changes do not accumulate between iterations.
+5. Never hard-code shapes (numbers of nodes, routes, goods, weeks): a policy must work on every task variant (tiny, small, full), so read them from `config` and `observation`.
 '''.strip()
 
 class AgentOpenAI(BaseAgent): 
