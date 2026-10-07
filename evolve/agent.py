@@ -170,10 +170,15 @@ class AgentOpenAI(BaseAgent):
         self.cache_write_tokens += usage.input_tokens_details.cache_write_tokens 
 
 class AgentAnthropic(BaseAgent):
-    def __init__(self, t: float = 1.0, top_p: float = 0.98):
-        super().__init__(t,top_p)
+    def __init__(self, model: str, reasoning: str | None, t: float | None, top_p: float | None, postfix: str | None):
+        super().__init__(model, reasoning, t, top_p, postfix)
         self.client = Anthropic()
-        self.model = 'claude-haiku-4-5'  # claude-haiku-4-5 $1 input, $0.1 cached input, $1.25 cache writes (5m), $5 output; no thinking unless enabled
+        self.costs = {
+            # per million tokens; cache writes are the 5-minute ttl (1.25x input)
+            'claude-haiku-4-5': {'input_tokens': 1.0, 'output_tokens': 5.0, 'cached_tokens': 0.1, 'cache_write_tokens': 1.25},
+            'claude-sonnet-5-5': {'input_tokens': 2.0, 'output_tokens': 10.0, 'cached_tokens': 0.2, 'cache_write_tokens': 2.5},
+            'claude-opus-5-5': {'input_tokens': 4.0, 'output_tokens': 20.0, 'cached_tokens': 0.2, 'cache_write_tokens': 5.0},
+        }
         self.max_tokens = 16000          # required by the api; above ~21k the sdk requires streaming
         self.ctx_path = './evolve/context/'
         self.system = self.init_system()
@@ -181,6 +186,14 @@ class AgentAnthropic(BaseAgent):
         self.input_tokens, self.output_tokens, self.cached_tokens,  self.cache_write_tokens = 0, 0, 0, 0
 
     def next_change(self) -> Changes:
+        kwargs = {}
+        if self.reasoning not in (None, 'none'):
+            # effort: low | medium | high | xhigh | max; haiku 4.5 rejects it (use reasoning='none' there)
+            kwargs['output_config'] = {'effort': self.reasoning}
+        if self.t is not None:
+            # sdk 1.x dropped sampling args; haiku 4.5 still accepts temperature, opus 5.5 / sonnet 5.5 reject it (pass t=None);
+            # top_p is never sent: 4.5 models take one or the other
+            kwargs['extra_body'] = {'temperature': self.t}
         res = self.client.beta.messages.parse(
             model=self.model,
             max_tokens=self.max_tokens,
@@ -188,7 +201,7 @@ class AgentAnthropic(BaseAgent):
             messages=self.history,
             output_format=Changes,
             cache_control={'type': 'ephemeral'},  # implicit: moves the breakpoint to the end of the history every call
-            extra_body={'temperature': self.t},   # sdk 1.x dropped sampling args, haiku 4.5 still accepts them; top_p is not sent: 4.5 models take one or the other
+            **kwargs,
         )
         if res.stop_reason in ('refusal', 'max_tokens'):
             raise RuntimeError(f'claude stopped with {res.stop_reason}: {res.stop_details}')
@@ -210,11 +223,18 @@ class AgentAnthropic(BaseAgent):
         self.history.append({'role': 'user', 'content': msg})
 
     def get_usage(self) -> dict:
+        c = self.costs[self.model]
+        # unlike openai, anthropic's input_tokens excludes cache reads and writes: the four counts add up
+        cost = (self.input_tokens * c['input_tokens']
+                + self.cached_tokens * c['cached_tokens']
+                + self.cache_write_tokens * c['cache_write_tokens']
+                + self.output_tokens * c['output_tokens']) / 1_000_000
         return {
             'input_tokens': self.input_tokens,
             'output_tokens': self.output_tokens,
             'cached_tokens': self.cached_tokens,
-            'cache_write_tokens': self.cache_write_tokens
+            'cache_write_tokens': self.cache_write_tokens,
+            'cost': cost
         }
 
     def upd_usage(self, usage):
