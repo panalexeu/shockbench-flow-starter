@@ -10,7 +10,8 @@ class Changes(BaseModel):
     changes: list[str]
 
 class BaseAgent():
-    def __init__(self, t: float, top_p: float):
+    def __init__(self, model: str, t: float, top_p: float):
+        self.model = model 
         self.t = t
         self.top_p = top_p
 
@@ -90,12 +91,16 @@ Rules:
 '''.strip()
 
 class AgentOpenAI(BaseAgent): 
-    def __init__(self, t: float = 1.0, top_p: float = 0.98): 
-        super().__init__(t,top_p)
+    def __init__(self, model: str, t: float = 1.0, top_p: float = 0.98): 
+        super().__init__(model, t, top_p)
         self.client = OpenAI()
         self.t = t
         self.top_p = top_p
-        self.model = 'gpt-6-luna'  # gpt-6-luna $0.1 input, $0.01 cached input, $0.125 cache writes, $0.5 output  
+        self.costs = {
+            # per million tokens: 
+            'gpt-6-luna': {'input_tokens': 0.1, 'output_tokens': 0.5, 'cached_tokens': 0.01, 'cache_write_tokens': 0.125},
+            'gpt-6.1-sol': {'input_tokens': 2.0, 'output_tokens': 10.0, 'cached_tokens': 0.1, 'cache_write_tokens': 2.5},
+        }
         self.reasoning = 'none' 
         self.cache_mode = 'explicit'
         self.ctx_path = './evolve/context/'
@@ -129,11 +134,15 @@ class AgentOpenAI(BaseAgent):
         self.history.append({'role': 'user', 'content': msg}) 
 
     def get_usage(self) -> dict: 
+        model_costs = self.costs[self.model] 
+        cost = self.input_tokens * model_costs['input_tokens'] / 1_000_000 + self.output_tokens * model_costs['output_tokens'] / 1_000_000 + \
+               self.cached_tokens * model_costs['cached_tokens'] / 1_000_000 + self.cache_write_tokens * model_costs['cache_write_tokens'] / 1_000_000         
         return {
             'input_tokens': self.input_tokens, 
             'output_tokens': self.output_tokens, 
             'cached_tokens': self.cached_tokens, 
-            'cache_write_tokens': self.cache_write_tokens
+            'cache_write_tokens': self.cache_write_tokens, 
+            'cost': cost
         } 
 
     def upd_usage(self, usage): 

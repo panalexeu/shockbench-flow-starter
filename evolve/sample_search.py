@@ -121,7 +121,7 @@ if __name__ == '__main__':
 
     # sample => score 
     for i in range(iters): 
-        agent = AgentOpenAI(lm_t, top_p)
+        agent = AgentOpenAI('gpt-6-luna', lm_t, top_p)
         sample_ids = sample(rng, all_policies, sample_n, sample_t)
         sampled_policies = [all_policies[id_] for id_ in sample_ids]
         state = 'policies: ' + '\n\n'.join([policy for policy in sampled_policies])
