@@ -14,6 +14,7 @@ from .agent import AgentOpenAI, AgentAnthropic
 _policy_dir = 'evolve/policies/policy2/'
 _fail_policy_dir = _policy_dir + 'fails'
 _error_prefix = '# error: '
+_baseline_policy_dir = 'evolve/context/policy.py'
 
 def create_policy_dir(): 
     os.makedirs(_policy_dir, exist_ok=True)
@@ -21,6 +22,10 @@ def create_policy_dir():
 
 def get_path(id_: str) -> str: 
     return _policy_dir + '/' + id_ + '.py'
+
+def get_baseline_policy() -> str: 
+    with open(_baseline_policy_dir, 'r') as f: 
+        return f.read() 
 
 def _is_score_line(line: str) -> bool:
     if not line.startswith('#'):
@@ -144,15 +149,16 @@ if __name__ == '__main__':
     all_policies = load_policies() 
     fail_poilicies = load_fail_policies()
     rng = np.random.default_rng(entropy)
+    postfix = 'baseline to start with: ' + get_baseline_policy()
 
     # sample => score 
     for i in range(iters): 
         # model selection 
         is_alpha = ((i % alpha_i) == 0) and alpha_model
         if is_alpha: 
-            agent = AgentOpenAI('gpt-6.1-sol', 'low', None, None)        
+            agent = AgentOpenAI('gpt-6.1-sol', 'low', None, None, postfix)        
         else: 
-            agent = AgentOpenAI('gpt-6-luna', 'none', lm_t, top_p)   
+            agent = AgentOpenAI('gpt-6-luna', 'none', lm_t, top_p, postfix)   
 
         #  sample policies => update state 
         sample_ids = sample_policies(rng, all_policies, sample_n, sample_t)

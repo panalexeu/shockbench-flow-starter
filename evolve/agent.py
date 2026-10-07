@@ -10,11 +10,19 @@ class Changes(BaseModel):
     changes: list[str]
 
 class BaseAgent():
-    def __init__(self, model: str, reasoning: str, t: float | None, top_p: float | None):
+    def __init__(
+        self, 
+        model: str, 
+        reasoning: str, 
+        t: float | None, 
+        top_p: float | None, 
+        postfix: str | None 
+    ):
         self.model = model 
         self.reasoning = reasoning 
         self.t = t
         self.top_p = top_p
+        self.postfix = postfix
 
     @abstractmethod
     def next_change(self) -> Changes: 
@@ -33,7 +41,7 @@ class BaseAgent():
             return f.read() 
 
     def _get_root_ctx(self) -> str: 
-        with open(self.ctx_path + 'ROOT_old.md', 'r') as f: 
+        with open(self.ctx_path + 'ROOT.md', 'r') as f: 
             return f.read() 
 
     # older iterative optimization version
@@ -71,7 +79,7 @@ where:
 
     # sample optimization version 
     def get_prefix_context(self) -> str: 
-        return F'''
+        prompt = F'''
 SUPPLY-SHOCK CHAIN ENVIRONMENT CONTEXT: 
 
 {self._get_root_ctx()}
@@ -91,10 +99,13 @@ Rules:
 4. Every proposed change is the full content of a new policy file (only Python source, no Markdown code fences). Changes do not accumulate between iterations.
 5. Never hard-code shapes (numbers of nodes, routes, goods, weeks): a policy must work on every task variant (tiny, small, full), so read them from `config` and `observation`.
 '''.strip()
+        if self.postfix: 
+            prompt += '\n' + self.postfix
+        return prompt 
 
 class AgentOpenAI(BaseAgent): 
-    def __init__(self, model: str, reasoning: str, t: float = 1.0, top_p: float = 0.98): 
-        super().__init__(model, reasoning, t, top_p)
+    def __init__(self, model: str, reasoning: str, t: float, top_p: float, postfix: str | None): 
+        super().__init__(model, reasoning, t, top_p, postfix)
         self.client = OpenAI()
         self.t = t
         self.top_p = top_p
