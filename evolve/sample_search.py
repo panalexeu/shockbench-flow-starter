@@ -113,7 +113,7 @@ if __name__ == '__main__':
     # search params  
     iters = 20  
     alpha = 0.25 # factor of proposal by strong (alpha) model                 
-    alpha_i = int(16 / (16*0.33))
+    alpha_i = int(16 / (16*alpha))
     sample_n = 5
     sample_t = 0.01
     lm_t = 1.0
