@@ -10,35 +10,17 @@ from sbf_starter import  scoring
 
 from .agent import AgentOpenAI, AgentAnthropic
 
-class ReplacmentError(Exception): 
-    def __init__(self, *args):
-        super().__init__(*args)
+_policy_dir = 'evolve/policies/policy1/'
+_fail_policy_dir = _policy_dir + 'fails'
+_error_prefix = '# error: '
 
-_policy_dir = 'evolve/policies/policy1'
 def create_policy_dir(): 
     os.makedirs(_policy_dir, exist_ok=True)
-
-_candidates_dir = './evolve/policies/candidate_pool'
-def create_candidate_dir(): 
-    os.makedirs(_candidates_dir, exist_ok=True)
-
-def get_candidates_pool(size: int) -> str: 
-    files_str = ''
-    paths = [path for path in Path(_candidates_dir).iterdir() if path.is_file()][:size]
-    for path in paths: 
-        with open(path, 'r') as f:
-            files_str += f.read() + '\n\n'
-    return files_str
-
-_base_policy_file = './evolve/context/policy.py'
-def _get_def_policy(): 
-    with open(_base_policy_file, 'r') as f: 
-        return f.read()
+    os.makedirs(_fail_policy_dir, exist_ok=True)
 
 def get_path(id_: str) -> str: 
     return _policy_dir + '/' + id_ + '.py'
 
-_error_prefix = '# error: '
 def _is_score_line(line: str) -> bool:
     if not line.startswith('#'):
         return False
@@ -88,6 +70,14 @@ def load_policies() -> list[str]:
                 policies.append(f.read())
     return policies
 
+def load_fail_policies() -> list[str] :
+    policies = []
+    for path in Path(_fail_policy_dir).iterdir():
+        if path.is_file(): 
+            with open(path, 'r') as f: 
+                policies.append(f.read())
+    return policies
+
 def _scores_to_probs(scores, t=1.0):
     s = np.asarray(scores, dtype=float)
     s = (s - s.mean()) / (s.std() + 1e-8)  
@@ -96,11 +86,20 @@ def _scores_to_probs(scores, t=1.0):
     p = np.exp(z)
     return p / p.sum()
     
-def sample(rng, policies: list[str], sample_n: int, sample_t: float) -> list[int]: 
+def sample_policies(rng, policies: list[str], sample_n: int, sample_t: float) -> list[int]: 
+    if len(policies) == 0: return []
+    if len(policies)-1 < sample_n: sample_n = len(policies)-1  
+
     scores = [get_score(hash(policy)) for policy in policies]
     probs = _scores_to_probs(scores, sample_t)
     idx = rng.choice(len(probs), size=sample_n, replace=False, p=probs)
     return idx
+
+def sample_fail_policies(rng, policies: list[str], sample_e: int) -> list[int]:
+    if len(policies) == 0: return []
+    if len(policies)-1 < sample_e: sample_e = len(policies)-1  
+    
+    return rng.choice(len(policies), size=sample_e, replace=False)  # uniform sampling 
 
 def form_prompt(ids: list[int], policies: list[str]) -> list[str]: 
     prompt = ''
@@ -123,48 +122,64 @@ if __name__ == '__main__':
 
     # TODO make this cli 
     # search params  
-    iters = 20  
-    alpha_model = False
-    alpha = 0.25 # factor of proposal by strong (alpha) model                 
+    iters = 12  
+    alpha_model = True
+    alpha = 0.25                 
     alpha_i = int(iters / (iters * alpha))
-    sample_n = 5
-    sample_t = 0.01
+    sample_n = 3
+    sample_e = 1 
+    sample_t = 1.0
     lm_t = 1.0
     top_p = 0.98
     all_policies = load_policies() 
+    fail_poilicies = load_fail_policies()
     rng = np.random.default_rng(entropy)
 
     # sample => score 
     for i in range(iters): 
-        if ((i % alpha_i) == 0) and alpha_model: 
+        # model selection 
+        is_alpha = ((i % alpha_i) == 0) and alpha_model
+        if is_alpha: 
             agent = AgentOpenAI('gpt-6.1-sol', 'low', None, None)        
         else: 
             agent = AgentOpenAI('gpt-6-luna', 'none', lm_t, top_p)   
-        sample_ids = sample(rng, all_policies, sample_n, sample_t)
+
+        #  sample policies => update state 
+        sample_ids = sample_policies(rng, all_policies, sample_n, sample_t)
         sampled_policies = [all_policies[id_] for id_ in sample_ids]
         state = 'policies: ' + '\n\n'.join([policy for policy in sampled_policies])
         agent.inj_history(state)
+
+        fail_sample_ids = sample_fail_policies(rng, fail_poilicies, sample_e)
+        fail_sampled_policies = [fail_poilicies[id_] for id_ in fail_sample_ids]
+        state = 'fail policies: ' + '\n\n'.join([policy for policy in fail_sampled_policies])
+        agent.inj_history(state)
+        
         state = f'begin! current task is {task}'
         agent.inj_history(state)
-        proposed_change, _ = agent.next_change() 
-        all_policies.extend(proposed_change.changes)
 
-        # evaluate fitness of changes 
+        # evaluate fitness of changes
+        proposed_change, _ = agent.next_change()  
         for change in proposed_change.changes: 
             id_ = hash(change)
             write_change(id_, change)
             try:
                 score = fitness(id_, train)
                 add_score(id_, score, None)
-            except (ReplacmentError, Exception) as e: 
+                all_policies.append(change)
+            except (Exception) as e: 
                 score = -999 
                 add_score(id_, score, str(e))
+                fail_poilicies.append(change)
 
         # log
-        print(f'iter: {i}, alpha: {i % alpha_i == 0}')
+        print(f'iter: {i}, alpha: {is_alpha}')
         print('sampled policies: ', [hash(policy) for policy in sampled_policies])
         print('their scores: ', [get_score(hash(policy)) for policy in sampled_policies])
+        print('fail sampled policies: ', [hash(policy) for policy in fail_sampled_policies])
+        print('their scores: ', [get_score(hash(policy)) for policy in fail_sampled_policies])
         print(proposed_change.reasoning)
         print('proposed policeis: ', [hash(change) for change in proposed_change.changes])
         print('their scores: ', [get_score(hash(change)) for change in proposed_change.changes])
         print(agent.get_usage())
+        
