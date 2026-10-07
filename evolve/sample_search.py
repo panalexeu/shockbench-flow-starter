@@ -114,8 +114,8 @@ if __name__ == '__main__':
     iters = 20  
     alpha = 0.25 # factor of proposal by strong (alpha) model                 
     alpha_i = int(16 / (16*0.33))
-    sample_n = 3
-    sample_t = 1.7
+    sample_n = 5
+    sample_t = 1.2
     lm_t = 1.0
     top_p = 0.98
     all_policies = load_policies() 
