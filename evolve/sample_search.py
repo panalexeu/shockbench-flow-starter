@@ -1,7 +1,9 @@
 # sampling approach closer to the one presented AlphaEvolve 
-import os 
+import os
+import json
 import shutil
 import hashlib 
+import datetime
 from pathlib import Path
 
 import numpy as np
@@ -11,8 +13,9 @@ from sbf_starter import  scoring
 
 from .agent import AgentOpenAI, AgentAnthropic
 
-_policy_dir = 'evolve/policies/policy2/'
-_fail_policy_dir = _policy_dir + 'fails'
+_datetime = datetime.datetime.now().strftime('%d-%m-%Y_%H-%M-%S')
+_policy_dir = 'evolve/policies/' + _datetime
+_fail_policy_dir = os.path.join(_policy_dir, 'fails')
 _error_prefix = '# error: '
 _baseline_policy_dir = 'evolve/context/policy.py'
 
@@ -23,7 +26,12 @@ def create_policy_dir():
 def get_path(id_: str) -> str: 
     return _policy_dir + '/' + id_ + '.py'
 
-def get_baseline_policy() -> str: 
+def write_log(log: dict):
+    # rewritten whole every iteration, so the file is valid JSON even if the run stops
+    with open(os.path.join(_policy_dir, 'log.json'), 'w') as f:
+        json.dump(log, f, indent=1)
+
+def get_baseline_policy() -> str:
     with open(_baseline_policy_dir, 'r') as f: 
         return f.read() 
 
@@ -83,7 +91,7 @@ def fitness(id_: str, episodes) -> tuple[float, str | None]:
 def load_policies() -> list[str]: 
     policies = []
     for path in Path(_policy_dir).iterdir():
-        if path.is_file(): 
+        if path.is_file() and path.suffix == '.py': 
             with open(path, 'r') as f: 
                 policies.append(f.read())
     return policies
@@ -91,7 +99,7 @@ def load_policies() -> list[str]:
 def load_fail_policies() -> list[str] :
     policies = []
     for path in Path(_fail_policy_dir).iterdir():
-        if path.is_file(): 
+        if path.is_file() and path.suffix == '.py': 
             with open(path, 'r') as f: 
                 policies.append(f.read())
     return policies
@@ -153,6 +161,14 @@ if __name__ == '__main__':
     fail_poilicies = load_fail_policies()
     rng = np.random.default_rng(entropy)
     postfix = None # 'a good baseline: ' + get_baseline_policy()
+    log = {
+        'meta': {
+            'task': task, 'entropy': entropy, 'train_episodes': train_episodes, 'holdout': holdout, 'quick': quick,
+            'iters': iters, 'alpha_model': alpha_model, 'alpha': alpha, 'sample_n': sample_n, 'sample_e': sample_e,
+            'sample_t': sample_t, 'lm_t': lm_t, 'top_p': top_p, 'postfix': postfix,
+        },
+        'iterations': [],
+    }
 
     # sample => score 
     for i in range(iters): 
@@ -198,4 +214,13 @@ if __name__ == '__main__':
         print('proposed policeis: ', [hash(change) for change in proposed_change.changes])
         print('their scores: ', [get_score(hash(change)) for change in proposed_change.changes])
         print(agent.get_usage())
+        sampled_ids = [hash(policy) for policy in sampled_policies]
+        proposed_ids = [hash(change) for change in proposed_change.changes]
+        log['iterations'].append({
+            'iter': i,
+            'reasoning': proposed_change.reasoning,
+            'proposed': [{'hash': h, 'reward': get_score(h)} for h in proposed_ids],
+            'sampled': [{'hash': h, 'reward': get_score(h)} for h in sampled_ids],
+        })
+        write_log(log)
         
