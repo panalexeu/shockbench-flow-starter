@@ -55,8 +55,11 @@ def add_score(id_: str, score: float, e: str | None):
         lines.insert(1, e_str)
     with open(get_path(id_), 'w') as f: f.write(''.join(lines)) 
 
-def get_score(id_: str) -> float: 
-    with open(get_path(id_), 'r') as f: lines = f.readlines()
+def get_score(id_: str) -> float:
+    path = get_path(id_)
+    if not os.path.exists(path):  # failed policies are moved to the fails folder
+        path = os.path.join(_fail_policy_dir, id_ + '.py')
+    with open(path, 'r') as f: lines = f.readlines()
     score = float(lines[0].lstrip("#").strip())
     return score 
 
@@ -149,7 +152,7 @@ if __name__ == '__main__':
     all_policies = load_policies() 
     fail_poilicies = load_fail_policies()
     rng = np.random.default_rng(entropy)
-    postfix = 'baseline to start with: ' + get_baseline_policy()
+    postfix = 'baseline: ' + get_baseline_policy()
 
     # sample => score 
     for i in range(iters): 
