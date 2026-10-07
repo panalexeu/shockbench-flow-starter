@@ -186,7 +186,7 @@ def main(
             agent = AgentOpenAI('gpt-6.1-sol', 'low', None, None, postfix)        
         else: 
             agent = AgentOpenAI('gpt-6-luna', 'none', lm_t, top_p, postfix)   
-        breakpoint()
+
         #  sample policies => update state 
         sample_ids = sample_policies(rng, all_policies, sample_n, sample_t)
         sampled_policies = [all_policies[id_] for id_ in sample_ids]
