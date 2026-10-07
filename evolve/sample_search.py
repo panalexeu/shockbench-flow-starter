@@ -137,19 +137,17 @@ if __name__ == '__main__':
         all_policies.extend(proposed_change.changes)
 
         # evaluate fitness of changes 
-        results: list[str | int] = []
         for change in proposed_change.changes: 
             try: 
                 id_ = hash(change) # create a hash based on the replacement string 
                 write_change(id_, change)
                 score = fitness(id_, train)
                 add_score(id_, score)
-                results.append(score) 
             except (ReplacmentError, Exception) as e: 
                 score = -1
                 add_score(id_, score)
-                results.append(str(e))
-                
+                print(e)
+
         # log
         print(f'iter: {i}, alpha: {i % alpha_i == 0}')
         print('sampled policies: ', [hash(policy) for policy in sampled_policies])
