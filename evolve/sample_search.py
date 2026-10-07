@@ -152,7 +152,7 @@ if __name__ == '__main__':
     all_policies = load_policies() 
     fail_poilicies = load_fail_policies()
     rng = np.random.default_rng(entropy)
-    postfix = 'a good baseline: ' + get_baseline_policy()
+    postfix = None # 'a good baseline: ' + get_baseline_policy()
 
     # sample => score 
     for i in range(iters): 
