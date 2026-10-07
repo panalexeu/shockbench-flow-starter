@@ -143,6 +143,7 @@ def main(
     lm_t: float = 1.0, 
     top_p: float = 0.98,
     policy_dir: str | None = None,  # an earlier run's folder, to continue from its policies
+    postfix: bool = True,  # add the baseline policy to the prompt
 ):
     global _policy_dir, _fail_policy_dir
     if policy_dir is not None:
@@ -168,7 +169,7 @@ def main(
     all_policies = load_policies() 
     fail_poilicies = load_fail_policies()
     rng = np.random.default_rng(entropy)
-    postfix = None # 'a good baseline: ' + get_baseline_policy()
+    postfix = 'A good baseline to start from: ' + get_baseline_policy() if postfix else None
     log = {
         'meta': {
             'task': task, 'entropy': entropy, 'train_episodes': train_episodes, 'holdout': holdout, 'quick': quick,
@@ -185,7 +186,7 @@ def main(
             agent = AgentOpenAI('gpt-6.1-sol', 'low', None, None, postfix)        
         else: 
             agent = AgentOpenAI('gpt-6-luna', 'none', lm_t, top_p, postfix)   
-
+        breakpoint()
         #  sample policies => update state 
         sample_ids = sample_policies(rng, all_policies, sample_n, sample_t)
         sampled_policies = [all_policies[id_] for id_ in sample_ids]
