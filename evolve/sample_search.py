@@ -6,6 +6,7 @@ import hashlib
 import datetime
 from pathlib import Path
 
+import fire
 import numpy as np
 from rich import print  
 from dotenv import load_dotenv
@@ -28,7 +29,7 @@ def get_path(id_: str) -> str:
 
 def write_log(log: dict):
     # rewritten whole every iteration, so the file is valid JSON even if the run stops
-    with open(os.path.join(_policy_dir, 'log.json'), 'w') as f:
+    with open(os.path.join(_policy_dir, f'log_{_datetime}.json'), 'w') as f:  # one log per run: a continued run keeps the old ones
         json.dump(log, f, indent=1)
 
 def get_baseline_policy() -> str:
@@ -132,7 +133,23 @@ def form_prompt(ids: list[int], policies: list[str]) -> list[str]:
     for id_ in ids: prompt += policies[id_] + '\n\n'
     return prompt 
 
-if __name__ == '__main__': 
+def main(
+    iters: int = 32, 
+    alpha_model: bool = False, 
+    alpha: float = 0.25, 
+    sample_n: int = 3, 
+    sample_e: int = 2,
+    sample_t: float = 1.0, 
+    lm_t: float = 1.0, 
+    top_p: float = 0.98,
+    policy_dir: str | None = None,  # an earlier run's folder, to continue from its policies
+):
+    global _policy_dir, _fail_policy_dir
+    if policy_dir is not None:
+        _policy_dir = policy_dir.rstrip('/')
+        _fail_policy_dir = os.path.join(_policy_dir, 'fails')
+    params = dict(locals())
+    print('search params:', params)
     load_dotenv()
     create_policy_dir()
 
@@ -146,17 +163,8 @@ if __name__ == '__main__':
     train = scoring.episode_set(task, train_episodes, quick=quick, entropy=entropy, n_jobs=n_jobs)
     held_out = scoring.episode_set(task, holdout, quick=quick, n_jobs=n_jobs)
 
-    # TODO make this cli 
-    # search params  
-    iters = 32
-    alpha_model = False
-    alpha = 0.25                 
+    # search params come from the cli (main's arguments)
     alpha_i = int(iters / (iters * alpha))
-    sample_n = 3
-    sample_e = 2 
-    sample_t = 1.0
-    lm_t = 1.0
-    top_p = 0.98
     all_policies = load_policies() 
     fail_poilicies = load_fail_policies()
     rng = np.random.default_rng(entropy)
@@ -164,8 +172,7 @@ if __name__ == '__main__':
     log = {
         'meta': {
             'task': task, 'entropy': entropy, 'train_episodes': train_episodes, 'holdout': holdout, 'quick': quick,
-            'iters': iters, 'alpha_model': alpha_model, 'alpha': alpha, 'sample_n': sample_n, 'sample_e': sample_e,
-            'sample_t': sample_t, 'lm_t': lm_t, 'top_p': top_p, 'postfix': postfix,
+            **params, 'postfix': postfix,
         },
         'iterations': [],
     }
@@ -224,3 +231,5 @@ if __name__ == '__main__':
         })
         write_log(log)
         
+if __name__ == '__main__':
+    fire.Fire(main)
