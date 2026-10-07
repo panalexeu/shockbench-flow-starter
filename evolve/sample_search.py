@@ -231,6 +231,7 @@ def main(
             'reasoning': proposed_change.reasoning,
             'proposed': [{'hash': h, 'reward': get_score(h)} for h in proposed_ids],
             'sampled': [{'hash': h, 'reward': get_score(h)} for h in sampled_ids],
+            'usage': agent.get_usage(),  # this iteration's tokens and cost (a new agent each iteration)
         })
         write_log(log)
         
