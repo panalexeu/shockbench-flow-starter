@@ -1,248 +1,158 @@
-ShockBench-Flow is a weekly control task on a supply network. Every week the
-policy decides how much of each good to send along each route. Disruptions (a
-strait closes, a route is sanctioned, a tariff jumps, a factory goes down) are
-drawn before the episode starts and nothing the policy does changes them. The
-policy sees the network as it is this week, its stock and shipments, a demand
-forecast, and noisy early warnings and announcements. An episode costs money
-(USD); lower is better.
+ShockBench-Flow is a Gymnasium control task. Every week of an episode an agent
+decides how much of each good to send along each route of a supply network.
+Disruptions (a strait closes, a route is sanctioned, a tariff jumps, a factory
+goes down) are drawn before the episode starts and nothing the agent does
+changes them. The agent sees the network as it is this week, its stock and
+shipments, a demand forecast, and noisy early warnings and announcements. An
+episode costs money (USD); lower is better.
 
-The score (RSS) compares the policy's cost with two references on the same
-scenarios: **0** is the naive rule, **1** is the clairvoyant plan (a linear
-program that knew every disruption in advance); below 0 is worse than naive and
-is not clipped.
+The score compares an agent's cost with two references on the same scenarios:
+**0** is the naive rule (keep shipping the normal plan), **1** is the
+clairvoyant plan (it knew every disruption in advance); below 0 is worse than
+naive. The package and the board call it RSS.
 
 ---
 
-## The task variants
+## The task
 
-The same policy file must run on every variant. Shapes and indices differ
-between them, so read every size, index and name from `config` and the
-observation; never copy a number from the tables at the end of this document.
+An episode is T weeks (26 on Tiny, 52 on Small, 104 on Full). Each week your
+agent chooses how much of each commodity to send along each route (an _action
+slot_: an edge, or the first edge of a sea lane through one or more straits),
+and, for tanker cargo waiting at a strait, whether it leaves by the default
+rule, by your own quantities, or waits. The environment then clips your orders
+to what is in stock and what the routes can carry this week, moves the goods,
+runs the factories and power grids, serves demand and charges the week's cost.
 
-| variant | weeks T | action slots | chokepoint node indices |
-| ------- | ------- | ------------ | ----------------------- |
-| tiny    | 26      | 20           | (one strait)            |
-| small   | 52      | 108          | 7 to 13                 |
-| full    | 104     | 395          | 10 to 16                |
+The cost J of an episode is the sum over weeks of freight, war-risk surcharges,
+tariffs, holding (higher for cargo queued at a strait), a penalty for every unit
+of demand not served, disposal and power shed at the grids, minus the value of
+what is left at the end. Lower is better. The disruptions of an episode
+(closures, sanctions, tariffs, conflicts, factory outages) are drawn before it
+starts from a public generator; nothing your agent does changes them.
 
-Small and Full store two blocks compactly; Tiny does not:
+**What your agent sees: the `standard` regime**, the one the leaderboards use.
+Besides the network as it is this week, your own state and the demand forecast,
+it gives three early signals of disruptions that have not acted yet:
 
-- `pipeline.*` is grouped: one entry per (edge, commodity, lane, arrival week),
-  its `qty` the total of the shipments.
-- The cargo queued at the straits is one dense array, `queue_lots.qty`, of shape
-  (number of lot keys, T). Row `i` is `config["layout"]["lot_keys"][i]`, a
-  (strait node, commodity, lane, next edge) list of indices; column `w - 1`
-  holds the quantity that reached the strait in week `w` and still waits.
-- Tiny's per-lot lists (`queue_lots.lot_id`, `.chokepoint`, `.k`, ...) do not
-  exist on Small and Full: reading them raises `KeyError` every week. The test
-  `"lot_keys" in config["layout"]` tells the layouts apart.
+- `warning.score`: an early-warning score per region, pair of rival regions and
+  strait, with a one-week lag;
+- `messages.*`: announcement threads (tariff proposals and final notices,
+  sanction threats, military threats); some are false alarms that never take
+  effect;
+- `pending_prohibitions.*`: announced sanctions not yet in force, with the week
+  each takes effect.
+
+The naive rule that anchors the score sees none of these and ignores
+disruptions, so using them well is where an agent can gain.
 
 ## The interface
 
 ```python
 class Agent:
-    def __init__(self, config):    # once per episode
+    def __init__(self, config=None):  # once per episode
         ...
 
-    def act(self, observation):    # once per week
+    def act(self, observation):       # once per week
         return {"flows": flows, "override_qty": override_qty, "release_mode": release_mode}
 ```
 
-- `flows`: a float array, one quantity (0 or more) per action slot.
-- `override_qty`: a float array, one per override slot; its length is
-  `len(config["static"]["override_slots"]["chokepoint"])`.
-- `release_mode`: an int array, one per `config["layout"]["release_pairs"]`
-  entry: 0 default release, 1 release your `override_qty`, 2 hold.
-- `override_qty` and `release_mode` may be left out (zeros: the default
-  release). Leaving them out is safer than sending a wrong length, which makes
-  the whole action malformed.
-- Entries on a prohibited slot, and negative or non-finite quantities, are
-  dropped; the rest of the action stands.
+- `config` is a dict: `static` (the network's tables: `nodes`, `edges`, `lanes`,
+  `commodities`, `action_slots`, `override_slots`, `sinks`, and the whole public
+  instance under `static["instance"]`), `regime`, `T`, `policy_seed` (seed your
+  random generators with it), `layout` (what each position of a dense
+  observation block stands for), `release_modes` and `spaces` (every array's
+  shape and dtype). Nothing hidden is in it.
+- `observation` is a dict of numpy arrays with fixed shapes, keyed by strings
+  (`observation["stock.qty"]`). Every field `x` comes with `x.observed`, 1 where
+  the value is shown this week and 0 where it is hidden or padding. Lists of
+  varying length (shipments in transit, messages) are padded to a fixed size.
+- The action is a dict: `flows` (one quantity per action slot, 0 or more),
+  `override_qty` (one per override slot) and `release_mode` (per strait and
+  tanker commodity: 0 the default release, 1 your `override_qty`, 2 hold). The
+  last two may be left out.
+- `action_mask` is 1 on every slot that may carry goods this week (no sanction
+  on its route). It does not show closures or capacity: read `graph_now.open`
+  (how open each strait is, 1 to 0) and `graph_now.u` (each edge's capacity this
+  week).
+- The nominal weekly flows (the normal plan) are the week-0 shipments of
+  `static["instance"]["initial_state"]["pipeline"]`.
 
-## What `config` holds, and in what form
+Every field, with its shape, dtype, index set and meaning, is in
+[fields/tiny.md](fields/tiny.md), [fields/small.md](fields/small.md) and
+[fields/full.md](fields/full.md), generated from the installed package by
+`uv run python scripts/fields_docs.py`. The fields that matter most at first:
 
-`config` is a dict with keys `static`, `regime`, `T`, `policy_seed`, `layout`,
-`release_modes` and `spaces`. Nothing hidden is in it.
+| key                                           | what it is                                                                                                  |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `week`                                        | the week to decide, 1 to T                                                                                  |
+| `stock.qty`                                   | stock on hand per (node, commodity), rows `layout["stock_slots"]`                                           |
+| `backlog.qty`                                 | unserved demand carried at each market                                                                      |
+| `graph_now.u`, `graph_now.c`, `graph_now.tau` | each edge's capacity, freight cost and lead time this week                                                  |
+| `graph_now.open`                              | each strait's open fraction, rows `layout["chokepoints"]`                                                   |
+| `graph_now.prohibited`, `graph_now.tariff`    | sanctions and tariffs per (edge, commodity)                                                                 |
+| `demand_forecast.qty`                         | the demand forecast for the next 8 weeks                                                                    |
+| `last_week.cost_components`                   | last week's cost by component (freight, war risk, tariff, holding, queue holding, shortage, disposal, shed) |
+| `warning.score`                               | the early-warning scores (`standard` only)                                                                  |
+| `action_mask`, `override_mask`                | the slots you may use this week                                                                             |
 
-**Indices, not names.** Every `layout` table and every index field of `static`
-holds integer indices. The tables at the end of this document print names only
-to make them readable. The real values on Small:
+Under gymnasium your agent needs the `config` the server builds; `agent_config`
+makes it from the reset:
 
-| expression                                  | value in Python                                                                                    |
-| ------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `config["layout"]["stock_slots"][0]`        | `[0, 0]`: (node index, commodity index)                                                            |
-| `config["layout"]["chokepoints"][0]`        | `7`: a node index                                                                                  |
-| `config["layout"]["lot_keys"][0]`           | `[7, 0, 0, 14]`: (chokepoint node, commodity, lane, next edge)                                     |
-| `config["release_modes"]`                   | `{'default': 0, 'override': 1, 'hold': 2}`                                                         |
-| `config["static"]["override_slots"]`        | keys `chokepoint`, `k`, `out_edge`, `lane` only (no `edge` key)                                    |
+```python
+import gymnasium as gym
+import shockbench_flow_gym
+from shockbench_flow_agent import agent_config
 
-To turn an index into a name, look it up in the `id` list of the matching
-`static` table: `static["nodes"]["id"]`, `static["edges"]["id"]`,
-`static["commodities"]["id"]`, `static["lanes"]["id"]`.
+env = gym.make("ShockBench/Small-v0")
+obs, info = env.reset(options={"episode": 0})
+agent = Agent(agent_config(info["static"], info["policy_seed"], env.unwrapped.layout, obs))
+```
 
-**Two shapes of table.** `config["static"]["nodes"]`, `["edges"]`, `["lanes"]`,
-`["commodities"]`, `["action_slots"]`, `["override_slots"]` and `["sinks"]` are
-dicts of equal-length lists (one entry per row). `config["static"]["instance"]`
-is the raw public instance JSON: there `nodes`, `edges` and `commodities` are
-lists of dicts, and they refer to each other **by name**, not by index.
+`gym.make` options: `regime` (`"standard"`, the scored one; `"prediction_free"`
+hides the three signals), `dense_reward` (a shaped reward whose sum is still
+minus the cost, up to a constant), `render_mode="rgb_array"`, `entropy` (the
+scenarios' root: 0, the default, is the public dev root; any other integer below
+2\*\*128 is a training root of your own) and `gamma` (the disruption intensity:
+0.62, the default and the scored one, 0.79, 0.95, 0.97). The gymnasium
+environment plays no fallback: an exception in `act` stops your script.
 
-**The nominal plan.** `static["instance"]["initial_state"]["pipeline"]` is a
-list of dicts, one per shipment of the normal plan, for example on Small:
-`{'edge': 'sea.tb.src_qa_lng.chk_hormuz', 'k': 'lng', 'lane': 'lane.src_qa_lng.term_tw', 'qty': 1886.57, 'dispatch_week': 0, 'arrival_week': 1}`.
-`edge`, `k` and `lane` are names; map them to indices through the `id` lists.
-The week-0 shipments (`dispatch_week` 0) are the nominal weekly flows.
+## Small and Full
 
-**Node parameters** live in `static["instance"]["nodes"]`. Each node dict has
-`id`, `type`, `region`, a `stock` dict per commodity and one sub-dict named
-after its type. On Small, for example:
+Small (the public board's) and Full (the private board's) have the same keys as
+Tiny except two blocks, stored compactly:
 
-- `stock[k]`: `holding_cost` (USD per unit per week), `salvage` (USD per unit
-  credited at the end), `storage` (capacity; stock above it is disposed of at a
-  cost). Sources have `supply_rate` and `storage` instead.
-- `fab`: `input` (wafer), `product` (a raw chip), `cap0` (wafer capacity per
-  week), `tau` (weeks from input to output), `e` (energy per unit), `grid` (the
-  grid that powers it), `w_scr` (weeks of work in process scrapped by an
-  outage).
-- `osat`: `packages` (raw chip -> packaged chip), `tau` (weeks), `thr`
-  (throughput per week).
-- `grid`: `base_load`, `deliverable` (generation), `shares` (fuel mix),
-  `rationed` (the fuel rationed when short), `ibar` (target fuel stock),
-  `priority` (who gets power first: base load or fabs), `voll` (USD per unit of
-  power shed).
-- `terminal`: `throughput` per week.
-- `sink`: `demand[k]` with `dbar` (mean weekly demand), `sigma`, `pi`
-  (shortage penalty, USD per unit not served) and `backlog` (true: unserved
-  demand carries over; false: it is lost).
+- `pipeline.*` is grouped: one entry per (edge, commodity, lane, arrival week),
+  its `qty` the total of the shipments.
+- The cargo queued at the straits is one dense array, `queue_lots.qty`, of shape
+  (number of lot keys, T). Row `i` is `config["layout"]["lot_keys"][i]`, a
+  (strait node, commodity, lane, next edge) tuple; column `w - 1` holds the
+  quantity that reached the strait in week `w` and still waits.
+- Tiny's per-lot lists (`queue_lots.lot_id`, `.chokepoint`, `.k`, ...) do not
+  exist there: an agent that reads them raises `KeyError` every week. Test
+  `"lot_keys" in config["layout"]` to tell the layouts apart.
 
-`static["instance"]["commodities"]` gives each commodity's `v` (customs value,
-the base of tariffs), `disposal_cost`, `pool` (tb tanker/bulk or ct container)
-and `override` (true for tanker cargo whose strait queue `release_mode` steers).
-`static["instance"]["params"]` holds global constants (`alpha_max`,
-`fleet_measure`, `fleet_share`, `forecast_shares`, `psi`, `tau_alpha`,
-`top_tariff`, `upsilon`); it has no production or recipe tables.
-
-## How a week runs
-
-In this order, every week t:
-
-1. **Straits release queued cargo.** Override and hold decisions apply first
-   (tanker cargo only). The default release then sends lots on in order of the
-   week they arrived (oldest first), limited by the next edge's capacity and the
-   strait's throughput for that pool (`graph_now.kappa.tb` / `.ct`). A lot whose
-   next edge is prohibited for its commodity waits. A hold beats an override on
-   the same (strait, commodity).
-2. **Your flows are clipped**: to the action mask, to each edge's capacity this
-   week, to the stock on hand (shared pro rata when slots compete for one
-   stock), and to the fleet available per pool.
-3. **Dispatch** takes goods from last week's end stock. Goods that arrive this
-   week can only be sent on next week.
-4. **Arrivals** land at the head of their edge (`pipeline.arrival_week`).
-5. **Production**: sources refill their stock up to `storage`; grids burn fuel
-   to make power (rationed when fuel stock is below `psi` times `ibar`) and serve
-   base load and fabs by `priority`; unserved base load is shed at `voll`; fabs
-   start wafers (limited by capacity, power and restoration after outages) and
-   finish lots `tau` weeks later; OSATs package raw chips.
-6. **Demand is served** at the sinks from stock.
-7. **Costs are charged.**
-
-## What costs money
-
-The cost of an episode is the sum over weeks of:
-
-- **freight**: `graph_now.c` per unit per edge;
-- **war-risk surcharges** on routes through a war-risk strait
-  (`graph_now.war_risk`);
-- **tariffs**: rate times the commodity's `v`, per unit, charged in the
-  dispatch week at the rate in force then;
-- **holding**: `holding_cost` per unit of end-of-week stock;
-- **queue holding**: cargo waiting at a strait, more expensive than ordinary
-  holding;
-- **shortage**: `pi` per unit of demand not served;
-- **disposal**: stock above a node's `storage`;
-- **shed**: `voll` per unit of power a grid could not supply;
-
-minus the **terminal credit**: `salvage` per unit of what is left at the end
-(stock, cargo in transit valued at its destination, queued cargo, and work in
-process at its input's value). Supply nodes' stock is worth 0.
-
-The sizes matter. On Small, a unit of leading-edge chips short at the US market
-costs 50,440 USD while holding one costs about 16 USD a week; a unit of power
-shed at the Taiwan grid costs about 4.1 million USD. Shortages and power
-cuts dominate the cost, so running out is far worse than holding extra stock.
-Read these numbers from the instance; they differ by node and variant.
-
-## The naive rule (score 0)
-
-The naive rule is not "do nothing" and not "repeat week 0". Each week it tops
-each route's destination up to an order-up-to level built from the nominal
-flows and lead times, switches to an alternative route when it observes a
-strait closed, and stops shipping on a route once a shipment could no longer
-arrive before the episode ends. It never reads the three early signals below.
-To beat it, a policy must act **before** disruptions hit (on the signals) or
-react better once they do.
-
-## The early signals (the `standard` regime)
-
-`config["regime"]` publishes the signals' parameters. On Small: `L` = 1,
-`a` = 0.604 for every kind of unit, `phi` = {`tariff_formal` 0.25,
-`tariff_informal` 0.36, `ties_threat` 0.538, `mid_threat` 0.298}, `chi` false,
-`blackout` none.
-
-- **`warning.score`**, one per unit of `layout["warning_units"]` (each region,
-  each pair of rival regions, each strait). It is `a` times the true hazard of
-  that unit plus `sqrt(1 - a^2)` times standard normal noise, read `L` week(s)
-  late. With `a` = 0.604 it is a weak, noisy signal: average it over weeks or
-  combine it with messages rather than react to one high value.
-- **`messages.*`**, announcement threads. Channels: `tariff_formal`,
-  `tariff_informal`, `tariff_final`, `sanction_legal`, `ties_threat`,
-  `mid_threat` (a military threat against a strait). Kinds: proposal,
-  final_notice, threat, publication, withdrawal. A thread is all the messages
-  of one event. On the four channels in `phi`, about that share of the shown
-  threads are false alarms. A real event is never withdrawn, so a withdrawal
-  marks a false alarm. Proposals, final notices and publications state an
-  effective week (`stated_effective_week`); threats do not.
-- **`pending_prohibitions.*`**: (edge, commodity, effective week) of announced
-  sanctions not yet in force. This list does not separate real sanctions from
-  false alarms.
-- `closure_end.*` is empty here (`chi` is false): the end of a closure is not
-  announced.
-
-## Rules that decide the score
-
-- **Imports**: only Python's standard library, numpy, SciPy and PyTorch (CPU,
-  one thread). Nothing else exists on the server.
-- **CPU time per week**: 2 s on Small, 4 s on Full; `__init__` counts toward
-  week 1. A week over budget, an exception or a malformed action is played by
-  the naive rule for that week. A large optimisation every week can exceed the
-  budget: keep it small or solve it less often.
-- **In this search, a policy that raises an exception scores -1.**
-- **Seeding**: seed every random generator from `config["policy_seed"]`.
-- **No shared state**: one `Agent` per episode; nothing carries over.
+Read every shape from `config["spaces"]`, never from Tiny's tables.
 
 ## Common mistakes
 
-- **Guessing keys.** A `.get("some_key", default)` on a key that does not exist
-  silently returns the default and gives wrong shapes or zeros. Use only the
-  keys documented here, and index directly so a mistake fails loudly.
-- **Reading names where there are indices**, or the reverse (see "What `config`
-  holds").
-- **Hard-coding sizes or indices** from the tables below.
-- **Trusting `action_mask` for closures.** It shows sanctions only. What you
-  send into a closed strait waits in its queue and pays queue holding: check
-  `graph_now.open` (1 open, 0 closed) and `graph_now.u` (capacity).
-- **Indexing the observation by position.** It is a dict keyed by strings
-  (`observation["stock.qty"]`). Every field `x` comes with `x.observed`, 1 where
-  the value is shown and 0 where it is hidden or padding.
-- **Wrong return types.** `act` returns a dict; `release_mode` is an array, not
-  a scalar.
+- **Indexing the observation by position.** `observation[2]` raises `KeyError`:
+  it is a dict keyed by strings.
+- **`__init__` without `config`.** The server calls `Agent(config)`;
+  `def __init__(self)` raises, and naive plays the whole episode.
+- **Returning the wrong thing.** `act` returns a dict with at least `flows`, a
+  float array with one entry per action slot (20, 108 or 395); `release_mode` is
+  an array, not a scalar.
+- **Flows on sanctioned routes.** Entries on a prohibited slot, and negative or
+  non-finite quantities, are dropped (the rest of the action stands). Multiply
+  `flows` by `observation["action_mask"]`.
+- **Trusting `action_mask` for closures.** What you send into a closed strait
+  waits in its queue: check `graph_now.open`.
+- **Imports the server lacks.** Only the standard library, numpy, scipy and
+  torch exist there. `sbf check` fails an agent that imports anything else.
+- **Files next to `agent.py`.** Load them relative to it:
+  `Path(__file__).parent / "weights.npz"`.
 
 ---
-
-## Field reference (generated from Small)
-
-The tables below are generated from the Small network. Use them to learn what
-each field means. Names are shown for reading; in Python the layout and slot
-tables hold **indices**, and the sizes and indices are **Small's only**.
 
 Generated for instance `chokepoint-small` (T = 52, regime `standard`) by `uv run python scripts/fields_docs.py`.
 

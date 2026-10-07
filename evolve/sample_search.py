@@ -14,7 +14,7 @@ class ReplacmentError(Exception):
     def __init__(self, *args):
         super().__init__(*args)
 
-_policy_dir = 'evolve/policies/policy0'
+_policy_dir = 'evolve/policies/policy1'
 def create_policy_dir(): 
     os.makedirs(_policy_dir, exist_ok=True)
 
@@ -38,21 +38,33 @@ def _get_def_policy():
 def get_path(id_: str) -> str: 
     return _policy_dir + '/' + id_ + '.py'
 
-def hash(text: str) -> str:
-    # remove score if it exists
-    first, _, rest = text.partition('\n')
-    if first.startswith('#'):
-        try:
-            float(first.lstrip('#').strip())
-            text = rest
-        except ValueError:
-            pass
-    return hashlib.blake2s(text.encode(), digest_size=6).hexdigest() 
+_error_prefix = '# error: '
+def _is_score_line(line: str) -> bool:
+    if not line.startswith('#'):
+        return False
+    try:
+        float(line.lstrip('#').strip())
+        return True
+    except ValueError:
+        return False
 
-def add_score(id_: str, score: float,):  
+def hash(text: str) -> str:
+    # remove the header add_score writes (score line, then an optional error line); keep every other byte
+    first, _, rest = text.partition('\n')
+    if _is_score_line(first):
+        text = rest
+        second, _, rest = text.partition('\n')
+        if second.startswith(_error_prefix):
+            text = rest
+    return hashlib.blake2s(text.encode(), digest_size=6).hexdigest()
+
+def add_score(id_: str, score: float, e: str | None):
     score_str = f'# {score}\n'
     with open(get_path(id_), 'r') as f: lines = f.readlines()
     lines.insert(0, score_str)
+    if e is not None:
+        e_str = _error_prefix + ' '.join(e.split()) + '\n'  # one line, so the header stays two lines
+        lines.insert(1, e_str)
     with open(get_path(id_), 'w') as f: f.write(''.join(lines)) 
 
 def get_score(id_: str) -> float: 
@@ -112,8 +124,9 @@ if __name__ == '__main__':
     # TODO make this cli 
     # search params  
     iters = 20  
+    alpha_model = False
     alpha = 0.25 # factor of proposal by strong (alpha) model                 
-    alpha_i = int(16 / (16*alpha))
+    alpha_i = int(iters / (iters * alpha))
     sample_n = 5
     sample_t = 0.01
     lm_t = 1.0
@@ -123,7 +136,7 @@ if __name__ == '__main__':
 
     # sample => score 
     for i in range(iters): 
-        if i % alpha_i == 0: 
+        if ((i % alpha_i) == 0) and alpha_model: 
             agent = AgentOpenAI('gpt-6.1-sol', 'low', None, None)        
         else: 
             agent = AgentOpenAI('gpt-6-luna', 'none', lm_t, top_p)   
@@ -138,15 +151,14 @@ if __name__ == '__main__':
 
         # evaluate fitness of changes 
         for change in proposed_change.changes: 
-            try: 
-                id_ = hash(change) # create a hash based on the replacement string 
-                write_change(id_, change)
+            id_ = hash(change)
+            write_change(id_, change)
+            try:
                 score = fitness(id_, train)
-                add_score(id_, score)
+                add_score(id_, score, None)
             except (ReplacmentError, Exception) as e: 
-                score = -1
-                add_score(id_, score)
-                print(e)
+                score = -999 
+                add_score(id_, score, str(e))
 
         # log
         print(f'iter: {i}, alpha: {i % alpha_i == 0}')
