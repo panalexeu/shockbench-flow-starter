@@ -88,7 +88,7 @@ def _scores_to_probs(scores, t=1.0):
     
 def sample_policies(rng, policies: list[str], sample_n: int, sample_t: float) -> list[int]: 
     if len(policies) == 0: return []
-    if len(policies)-1 < sample_n: sample_n = len(policies)-1  
+    if len(policies)-1 < sample_n: sample_n = len(policies)  
 
     scores = [get_score(hash(policy)) for policy in policies]
     probs = _scores_to_probs(scores, sample_t)
@@ -97,7 +97,7 @@ def sample_policies(rng, policies: list[str], sample_n: int, sample_t: float) ->
 
 def sample_fail_policies(rng, policies: list[str], sample_e: int) -> list[int]:
     if len(policies) == 0: return []
-    if len(policies)-1 < sample_e: sample_e = len(policies)-1  
+    if len(policies)-1 < sample_e: sample_e = len(policies)  
     
     return rng.choice(len(policies), size=sample_e, replace=False)  # uniform sampling 
 
