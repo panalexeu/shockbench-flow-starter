@@ -142,8 +142,10 @@ def main(
     sample_t: float = 1.0, 
     lm_t: float = 1.0, 
     top_p: float = 0.98,
-    policy_dir: str | None = None,  # an earlier run's folder, to continue from its policies
-    postfix: bool = True,  # add the baseline policy to the prompt
+    policy_dir: str | None = None, # an earlier run's folder, to continue from its policies
+    postfix: bool = True,          # add the baseline policy to the prompt
+    alpha_reasoning: str = 'low',  # reasoning effort of the alpha (strong) model
+    beta_reasoning: str = 'none',  # reasoning effort of the beta (default) model
 ):
     global _policy_dir, _fail_policy_dir
     if policy_dir is not None:
@@ -183,9 +185,9 @@ def main(
         # model selection 
         is_alpha = ((i % alpha_i) == 0) and alpha_model
         if is_alpha: 
-            agent = AgentOpenAI('gpt-6.1-sol', 'low', None, None, postfix)        
+            agent = AgentOpenAI('gpt-6.1-sol', alpha_reasoning, None, None, postfix)        
         else: 
-            agent = AgentOpenAI('gpt-6-luna', 'none', lm_t, top_p, postfix)   
+            agent = AgentOpenAI('gpt-6-luna', beta_reasoning, lm_t, top_p, postfix)   
 
         #  sample policies => update state 
         sample_ids = sample_policies(rng, all_policies, sample_n, sample_t)
