@@ -183,12 +183,12 @@ if __name__ == '__main__':
             try:
                 score, note = fitness(id_, train)
                 add_score(id_, score, note)
-                all_policies.append(change)
-            except (Exception) as e: 
-                score = -999 
+                with open(get_path(id_), 'r') as f: all_policies.append(f.read())  # with its score header
+            except (Exception) as e:
+                score = -999
                 add_score(id_, score, str(e))
-                fail_poilicies.append(change)
-                shutil.move(get_path(id_), _fail_policy_dir)
+                fail_path = shutil.move(get_path(id_), _fail_policy_dir)
+                with open(fail_path, 'r') as f: fail_poilicies.append(f.read())  # with its score and error header
 
         # log
         print(f'iter: {i}, alpha: {is_alpha}')
