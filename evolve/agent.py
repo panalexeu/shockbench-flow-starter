@@ -134,9 +134,13 @@ class AgentOpenAI(BaseAgent):
         self.history.append({'role': 'user', 'content': msg}) 
 
     def get_usage(self) -> dict: 
-        model_costs = self.costs[self.model] 
-        cost = self.input_tokens * model_costs['input_tokens'] / 1_000_000 + self.output_tokens * model_costs['output_tokens'] / 1_000_000 + \
-               self.cached_tokens * model_costs['cached_tokens'] / 1_000_000 + self.cache_write_tokens * model_costs['cache_write_tokens'] / 1_000_000         
+        c = self.costs[self.model]
+        # input_tokens includes cached and cache-write tokens: charge only the rest at the full input price
+        uncached = self.input_tokens - self.cached_tokens - self.cache_write_tokens
+        cost = (uncached * c['input_tokens']
+                + self.cached_tokens * c['cached_tokens']
+                + self.cache_write_tokens * c['cache_write_tokens']
+                + self.output_tokens * c['output_tokens']) / 1_000_000
         return {
             'input_tokens': self.input_tokens, 
             'output_tokens': self.output_tokens, 
