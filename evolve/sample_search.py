@@ -111,7 +111,9 @@ if __name__ == '__main__':
 
     # TODO make this cli 
     # search params  
-    iters = 16                
+    iters = 20  
+    alpha = 0.25 # factor of proposal by strong (alpha) model                 
+    alpha_i = int(16 / (16*0.33))
     sample_n = 3
     sample_t = 1.7
     lm_t = 1.0
@@ -121,7 +123,10 @@ if __name__ == '__main__':
 
     # sample => score 
     for i in range(iters): 
-        agent = AgentOpenAI('gpt-6-luna', lm_t, top_p)
+        if i % alpha_i == 0: 
+            agent = AgentOpenAI('gpt-6.1-sol', 'low', None, None)        
+        else: 
+            agent = AgentOpenAI('gpt-6-luna', 'none', lm_t, top_p)   
         sample_ids = sample(rng, all_policies, sample_n, sample_t)
         sampled_policies = [all_policies[id_] for id_ in sample_ids]
         state = 'policies: ' + '\n\n'.join([policy for policy in sampled_policies])
@@ -146,7 +151,7 @@ if __name__ == '__main__':
                 results.append(str(e))
                 
         # log
-        print(f'iter: {i}')
+        print(f'iter: {i}, alpha: {i % alpha_i == 0}')
         print('sampled policies: ', [hash(policy) for policy in sampled_policies])
         print('their scores: ', [get_score(hash(policy)) for policy in sampled_policies])
         print(proposed_change.reasoning)

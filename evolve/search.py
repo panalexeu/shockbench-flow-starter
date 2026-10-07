@@ -1,3 +1,4 @@
+# deprecated iterative search
 import os 
 import shutil 
 import hashlib 

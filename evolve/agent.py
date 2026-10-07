@@ -10,8 +10,9 @@ class Changes(BaseModel):
     changes: list[str]
 
 class BaseAgent():
-    def __init__(self, model: str, t: float, top_p: float):
+    def __init__(self, model: str, reasoning: str, t: float | None, top_p: float | None):
         self.model = model 
+        self.reasoning = reasoning 
         self.t = t
         self.top_p = top_p
 
@@ -91,8 +92,8 @@ Rules:
 '''.strip()
 
 class AgentOpenAI(BaseAgent): 
-    def __init__(self, model: str, t: float = 1.0, top_p: float = 0.98): 
-        super().__init__(model, t, top_p)
+    def __init__(self, model: str, reasoning: str, t: float = 1.0, top_p: float = 0.98): 
+        super().__init__(model, reasoning, t, top_p)
         self.client = OpenAI()
         self.t = t
         self.top_p = top_p
@@ -100,8 +101,7 @@ class AgentOpenAI(BaseAgent):
             # per million tokens: 
             'gpt-6-luna': {'input_tokens': 0.1, 'output_tokens': 0.5, 'cached_tokens': 0.01, 'cache_write_tokens': 0.125},
             'gpt-6.1-sol': {'input_tokens': 2.0, 'output_tokens': 10.0, 'cached_tokens': 0.1, 'cache_write_tokens': 2.5},
-        }
-        self.reasoning = 'none' 
+        } 
         self.cache_mode = 'explicit'
         self.ctx_path = './evolve/context/'
         self.history = self.init_history()
