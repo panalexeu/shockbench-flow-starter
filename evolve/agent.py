@@ -33,7 +33,7 @@ class BaseAgent():
             return f.read() 
 
     def _get_root_ctx(self) -> str: 
-        with open(self.ctx_path + 'ROOT.md', 'r') as f: 
+        with open(self.ctx_path + 'ROOT_old.md', 'r') as f: 
             return f.read() 
 
     # older iterative optimization version

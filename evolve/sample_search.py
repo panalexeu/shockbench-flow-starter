@@ -1,16 +1,17 @@
 # sampling approach closer to the one presented AlphaEvolve 
 import os 
+import shutil
 import hashlib 
 from pathlib import Path
 
-from rich import print 
-import numpy as np 
+import numpy as np
+from rich import print  
 from dotenv import load_dotenv
 from sbf_starter import  scoring
 
 from .agent import AgentOpenAI, AgentAnthropic
 
-_policy_dir = 'evolve/policies/policy1/'
+_policy_dir = 'evolve/policies/policy2/'
 _fail_policy_dir = _policy_dir + 'fails'
 _error_prefix = '# error: '
 
@@ -178,6 +179,7 @@ if __name__ == '__main__':
                 score = -999 
                 add_score(id_, score, str(e))
                 fail_poilicies.append(change)
+                shutil.move(get_path(id_), _fail_policy_dir)
 
         # log
         print(f'iter: {i}, alpha: {is_alpha}')
