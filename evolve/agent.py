@@ -90,10 +90,12 @@ You are an AI assistant. Your task is to iteratively improve the RL policy for t
 
 You are provided with a set of policies along with their scores. The first line of each policy is its score in the `# {{score}}` format (higher is better). Your task is to propose new policies that score higher than the provided ones.
 
+The set may include failing policies (score `# -999`, then a `# error: {{message}}` line): avoid their mistakes. It may be empty if no policy exists yet.
+
 The provided policies are only examples. The goal is the highest possible score, not staying close to them. You are free to propose a completely different policy: redesign the decision logic, use any information available in `config` and `observation`, keep internal state between steps, and so on.
 
 Rules:
-1. Every policy you propose must adhere strictly to the interface of the provided policies.
+1. Every policy you propose must adhere strictly to the interface described in the environment context.
 2. You may propose multiple changes in a single iteration, for example to compare several alternative policy changes or to sweep over policy parameters.
 3. Structure your response in this order: first your reasoning, then your proposed changes.
 4. Every proposed change is the full content of a new policy file (only Python source, no Markdown code fences). Changes do not accumulate between iterations.
