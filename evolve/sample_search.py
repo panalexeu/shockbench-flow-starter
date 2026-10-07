@@ -147,12 +147,10 @@ if __name__ == '__main__':
         #  sample policies => update state 
         sample_ids = sample_policies(rng, all_policies, sample_n, sample_t)
         sampled_policies = [all_policies[id_] for id_ in sample_ids]
-        state = 'policies: ' + '\n\n'.join([policy for policy in sampled_policies])
-        agent.inj_history(state)
-
         fail_sample_ids = sample_fail_policies(rng, fail_poilicies, sample_e)
         fail_sampled_policies = [fail_poilicies[id_] for id_ in fail_sample_ids]
-        state = 'fail policies: ' + '\n\n'.join([policy for policy in fail_sampled_policies])
+        sampled_policies.extend(fail_sampled_policies)
+        state = 'policies: ' + '\n\n'.join([policy for policy in sampled_policies])
         agent.inj_history(state)
         
         state = f'begin! current task is {task}'
@@ -176,8 +174,6 @@ if __name__ == '__main__':
         print(f'iter: {i}, alpha: {is_alpha}')
         print('sampled policies: ', [hash(policy) for policy in sampled_policies])
         print('their scores: ', [get_score(hash(policy)) for policy in sampled_policies])
-        print('fail sampled policies: ', [hash(policy) for policy in fail_sampled_policies])
-        print('their scores: ', [get_score(hash(policy)) for policy in fail_sampled_policies])
         print(proposed_change.reasoning)
         print('proposed policeis: ', [hash(change) for change in proposed_change.changes])
         print('their scores: ', [get_score(hash(change)) for change in proposed_change.changes])
