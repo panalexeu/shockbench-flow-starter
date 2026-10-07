@@ -140,8 +140,8 @@ if __name__ == '__main__':
 
     # TODO make this cli 
     # search params  
-    iters = 12  
-    alpha_model = False
+    iters = 24  
+    alpha_model = True
     alpha = 0.25                 
     alpha_i = int(iters / (iters * alpha))
     sample_n = 3
@@ -152,7 +152,7 @@ if __name__ == '__main__':
     all_policies = load_policies() 
     fail_poilicies = load_fail_policies()
     rng = np.random.default_rng(entropy)
-    postfix = 'baseline: ' + get_baseline_policy()
+    postfix = 'a good baseline: ' + get_baseline_policy()
 
     # sample => score 
     for i in range(iters): 
