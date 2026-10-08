@@ -14,14 +14,10 @@ class BaseAgent():
         self, 
         model: str, 
         reasoning: str, 
-        t: float | None, 
-        top_p: float | None, 
         postfix: str | None 
     ):
         self.model = model 
         self.reasoning = reasoning 
-        self.t = t
-        self.top_p = top_p
         self.postfix = postfix
 
     @abstractmethod
@@ -106,11 +102,9 @@ Rules:
         return prompt 
 
 class AgentOpenAI(BaseAgent): 
-    def __init__(self, model: str, reasoning: str, t: float, top_p: float, postfix: str | None): 
-        super().__init__(model, reasoning, t, top_p, postfix)
+    def __init__(self, model: str, reasoning: str, postfix: str | None): 
+        super().__init__(model, reasoning, postfix)
         self.client = OpenAI()
-        self.t = t
-        self.top_p = top_p
         self.costs = {
             # per million tokens: 
             'gpt-6-luna': {'input_tokens': 0.1, 'output_tokens': 0.5, 'cached_tokens': 0.01, 'cache_write_tokens': 0.125},
@@ -128,8 +122,6 @@ class AgentOpenAI(BaseAgent):
             text_format=Changes,
             input=self.history, 
             prompt_cache_options={'mode': self.cache_mode}, 
-            temperature=self.t, 
-            top_p=self.top_p
         ) 
         self.upd_history(res.output)
         self.upd_usage(res.usage)
@@ -170,8 +162,8 @@ class AgentOpenAI(BaseAgent):
         self.cache_write_tokens += usage.input_tokens_details.cache_write_tokens 
 
 class AgentAnthropic(BaseAgent):
-    def __init__(self, model: str, reasoning: str | None, t: float | None, top_p: float | None, postfix: str | None):
-        super().__init__(model, reasoning, t, top_p, postfix)
+    def __init__(self, model: str, reasoning: str | None, postfix: str | None):
+        super().__init__(model, reasoning, postfix)
         self.client = Anthropic()
         self.costs = {
             # per million tokens; cache writes are the 5-minute ttl (1.25x input)
@@ -190,10 +182,6 @@ class AgentAnthropic(BaseAgent):
         if self.reasoning not in (None, 'none'):
             # effort: low | medium | high | xhigh | max; haiku 4.5 rejects it (use reasoning='none' there)
             kwargs['output_config'] = {'effort': self.reasoning}
-        if self.t is not None:
-            # sdk 1.x dropped sampling args; haiku 4.5 still accepts temperature, opus 5.5 / sonnet 5.5 reject it (pass t=None);
-            # top_p is never sent: 4.5 models take one or the other
-            kwargs['extra_body'] = {'temperature': self.t}
         res = self.client.beta.messages.parse(
             model=self.model,
             max_tokens=self.max_tokens,

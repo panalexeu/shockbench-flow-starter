@@ -27,24 +27,21 @@ def create_policy_dir():
 def get_path(id_: str) -> str: 
     return _policy_dir + '/' + id_ + '.py'
 
-# every supported model: its agent and whether it accepts temperature / top_p (each has a price in its agent's table)
+# every supported model and its agent (each has a price in its agent's table)
 MODELS = {
-    'gpt-6-luna': (AgentOpenAI, True),
-    'gpt-6.1-sol': (AgentOpenAI, False),
-    'claude-haiku-4-5': (AgentAnthropic, True),
-    'claude-sonnet-5-5': (AgentAnthropic, False),
-    'claude-opus-5-5': (AgentAnthropic, False),
+    'gpt-6-luna': AgentOpenAI,
+    'gpt-6.1-sol': AgentOpenAI,
+    'claude-haiku-4-5': AgentAnthropic,
+    'claude-sonnet-5-5': AgentAnthropic,
+    'claude-opus-5-5': AgentAnthropic,
 }
 
 def check_model(model: str):
     if model not in MODELS:
         raise SystemExit(f'unknown model {model!r}: choose one of {list(MODELS)}')
 
-def make_agent(model: str, reasoning: str, t: float | None, top_p: float | None, postfix: str | None):
-    agent_class, sampling = MODELS[model]
-    if not sampling:
-        t, top_p = None, None
-    return agent_class(model, reasoning, t, top_p, postfix)
+def make_agent(model: str, reasoning: str, postfix: str | None):
+    return MODELS[model](model, reasoning, postfix)
 
 def write_log(log: dict):
     # rewritten whole every iteration, so the file is valid JSON even if the run stops
@@ -159,8 +156,6 @@ def main(
     sample_n: int = 3, 
     sample_e: int = 2,
     sample_t: float = 1.0, 
-    lm_t: float = 1.0, 
-    top_p: float = 0.98,
     policy_dir: str | None = None,
     postfix: bool = True,         
     alpha_reasoning: str = 'low', 
@@ -208,9 +203,9 @@ def main(
         # model selection 
         is_alpha = ((i % alpha_i) == 0) and alpha_model
         if is_alpha: 
-            agent = make_agent(alpha_name, alpha_reasoning, None, None, postfix)
+            agent = make_agent(alpha_name, alpha_reasoning, postfix)
         else: 
-            agent = make_agent(beta_name, beta_reasoning, lm_t, top_p, postfix)
+            agent = make_agent(beta_name, beta_reasoning, postfix)
 
         #  sample policies => update state 
         sample_ids = sample_policies(rng, all_policies, sample_n, sample_t)
