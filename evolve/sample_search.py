@@ -27,6 +27,25 @@ def create_policy_dir():
 def get_path(id_: str) -> str: 
     return _policy_dir + '/' + id_ + '.py'
 
+# every supported model: its agent and whether it accepts temperature / top_p (each has a price in its agent's table)
+MODELS = {
+    'gpt-6-luna': (AgentOpenAI, True),
+    'gpt-6.1-sol': (AgentOpenAI, False),
+    'claude-haiku-4-5': (AgentAnthropic, True),
+    'claude-sonnet-5-5': (AgentAnthropic, False),
+    'claude-opus-5-5': (AgentAnthropic, False),
+}
+
+def check_model(model: str):
+    if model not in MODELS:
+        raise SystemExit(f'unknown model {model!r}: choose one of {list(MODELS)}')
+
+def make_agent(model: str, reasoning: str, t: float | None, top_p: float | None, postfix: str | None):
+    agent_class, sampling = MODELS[model]
+    if not sampling:
+        t, top_p = None, None
+    return agent_class(model, reasoning, t, top_p, postfix)
+
 def write_log(log: dict):
     # rewritten whole every iteration, so the file is valid JSON even if the run stops
     with open(os.path.join(_policy_dir, f'log_{_datetime}.json'), 'w') as f:  # one log per run: a continued run keeps the old ones
@@ -142,10 +161,12 @@ def main(
     sample_t: float = 1.0, 
     lm_t: float = 1.0, 
     top_p: float = 0.98,
-    policy_dir: str | None = None, # an earlier run's folder, to continue from its policies
-    postfix: bool = True,          # add the baseline policy to the prompt
-    alpha_reasoning: str = 'low',  # reasoning effort of the alpha (strong) model
-    beta_reasoning: str = 'none',  # reasoning effort of the beta (default) model
+    policy_dir: str | None = None,
+    postfix: bool = True,         
+    alpha_reasoning: str = 'low', 
+    beta_reasoning: str = 'none', 
+    alpha_name: str = 'gpt-6.1-sol',
+    beta_name: str = 'gpt-6-luna',    
 ):
     global _policy_dir, _fail_policy_dir
     if policy_dir is not None:
@@ -153,6 +174,8 @@ def main(
         _fail_policy_dir = os.path.join(_policy_dir, 'fails')
     params = dict(locals())
     print('search params:', params)
+    check_model(alpha_name)  # before any work: a wrong name fails here, not mid-run
+    check_model(beta_name)
     load_dotenv()
     create_policy_dir()
 
@@ -185,9 +208,9 @@ def main(
         # model selection 
         is_alpha = ((i % alpha_i) == 0) and alpha_model
         if is_alpha: 
-            agent = AgentOpenAI('gpt-6.1-sol', alpha_reasoning, None, None, postfix)        
+            agent = make_agent(alpha_name, alpha_reasoning, None, None, postfix)
         else: 
-            agent = AgentOpenAI('gpt-6-luna', beta_reasoning, lm_t, top_p, postfix)   
+            agent = make_agent(beta_name, beta_reasoning, lm_t, top_p, postfix)
 
         #  sample policies => update state 
         sample_ids = sample_policies(rng, all_policies, sample_n, sample_t)
@@ -217,7 +240,7 @@ def main(
                 with open(fail_path, 'r') as f: fail_poilicies.append(f.read())  # with its score and error header
 
         # log
-        print(f'iter: {i}, alpha: {is_alpha}')
+        print(f'iter: {i}, alpha: {is_alpha}, model: {agent.model} ({agent.reasoning})')
         print('sampled policies: ', [hash(policy) for policy in sampled_policies])
         print('their scores: ', [get_score(hash(policy)) for policy in sampled_policies])
         print(proposed_change.reasoning)
@@ -228,6 +251,8 @@ def main(
         proposed_ids = [hash(change) for change in proposed_change.changes]
         log['iterations'].append({
             'iter': i,
+            'model': agent.model,
+            'reasoning_effort': agent.reasoning,
             'reasoning': proposed_change.reasoning,
             'proposed': [{'hash': h, 'reward': get_score(h)} for h in proposed_ids],
             'sampled': [{'hash': h, 'reward': get_score(h)} for h in sampled_ids],
