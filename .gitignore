@@ -29,4 +29,5 @@ __pycache__/
 stuff/
 evolve/data/
 evolve/tmp/ 
+evolve/outputs/
 evolve/policies/

@@ -200,7 +200,6 @@ class AgentAnthropic(BaseAgent):
             system=self.system,
             messages=self.history,
             output_format=Changes,
-            cache_control={'type': 'ephemeral'},  # implicit: moves the breakpoint to the end of the history every call
             **kwargs,
         )
         if res.stop_reason in ('refusal', 'max_tokens'):
