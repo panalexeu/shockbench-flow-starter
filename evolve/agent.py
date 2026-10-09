@@ -37,7 +37,7 @@ class BaseAgent():
             return f.read() 
 
     def _get_root_ctx(self) -> str: 
-        with open(self.ctx_path + 'ROOT.md', 'r') as f: 
+        with open(self.ctx_path + 'ROOT_ext.md', 'r') as f: 
             return f.read() 
 
     def get_prefix_context(self) -> str: 
