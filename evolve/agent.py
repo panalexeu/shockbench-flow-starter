@@ -1,4 +1,3 @@
-# TODO make prompts interchangable along with caching handling!
 from abc import abstractmethod
 
 from openai import OpenAI
