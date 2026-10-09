@@ -1,3 +1,4 @@
+from typing import override
 from abc import abstractmethod
 
 from openai import OpenAI
@@ -66,7 +67,39 @@ Rules:
             prompt += '\n' + self.postfix
         return prompt 
 
-class AgentOpenAI(BaseAgent): 
+class BaseAgentLP(BaseAgent): 
+    @override
+    def get_prefix_context(self) -> str: 
+        prompt = F'''
+SUPPLY-SHOCK CHAIN ENVIRONMENT CONTEXT: 
+
+{self._get_root_ctx()}
+
+INSTRUCTIONS: 
+
+You are an AI assistant. Your task is to iteratively improve the RL policy for the supply-shock chain environment.
+
+You are provided with a set of policies along with their scores. The first line of each policy is its score in the `# {{score}}` format (higher is better). Your task is to propose new policies that score higher than the provided ones.
+
+The set may include failing policies (score `# -999`, then a `# error: {{message}}` line): avoid their mistakes. It may be empty if no policy exists yet.
+
+The provided policies are only examples. The goal is the highest possible score, not staying close to them. You are free to propose a completely different policy: redesign the decision logic, use any information available in `config` and `observation`, keep internal state between steps, and so on.
+
+Every policy must decide its flows by solving a linear program each week: build the variables (e.g. flows per route and week over a planning horizon), the cost to minimise and the constraints from `config` and `observation`, solve it, and play the first week of the solution.
+
+Rules:
+1. Every policy you propose must adhere strictly to the interface described in the environment context.
+2. You may propose multiple changes in a single iteration, for example to compare several alternative policy changes or to sweep over policy parameters.
+3. Structure your response in this order: first your reasoning, then your proposed changes.
+4. Every proposed change is the full content of a new policy file (only Python source, no Markdown code fences). Changes do not accumulate between iterations.
+5. Never hard-code shapes (numbers of nodes, routes, goods, weeks): a policy must work on every task variant (tiny, small, full), so read them from `config` and `observation`.
+6. SciPy is available: use it to solve the linear program. 
+'''.strip()
+        if self.postfix:
+            prompt += '\n' + self.postfix
+        return prompt
+
+class AgentOpenAI(BaseAgent):
     def __init__(self, model: str, reasoning: str, postfix: str | None): 
         super().__init__(model, reasoning, postfix)
         self.client = OpenAI()
@@ -125,6 +158,9 @@ class AgentOpenAI(BaseAgent):
         self.output_tokens += usage.output_tokens 
         self.cached_tokens += usage.input_tokens_details.cached_tokens 
         self.cache_write_tokens += usage.input_tokens_details.cache_write_tokens 
+
+class AgentOpenAILP(AgentOpenAI, BaseAgentLP): 
+    pass 
 
 class AgentAnthropic(BaseAgent):
     def __init__(self, model: str, reasoning: str | None, postfix: str | None):
@@ -194,3 +230,6 @@ class AgentAnthropic(BaseAgent):
         self.output_tokens += usage.output_tokens
         self.cached_tokens += usage.cache_read_input_tokens or 0
         self.cache_write_tokens += usage.cache_creation_input_tokens or 0
+
+class AgentAnthropicLP(AgentAnthropic, BaseAgentLP): 
+    pass 

@@ -12,7 +12,7 @@ from rich import print
 from dotenv import load_dotenv
 from sbf_starter import  scoring
 
-from .agent import AgentOpenAI, AgentAnthropic
+from .agent import AgentOpenAI, AgentAnthropic, AgentAnthropicLP, AgentOpenAILP
 
 _datetime = datetime.datetime.now().strftime('%d-%m-%Y_%H-%M-%S')
 _policy_dir = 'evolve/policies/' + _datetime
@@ -29,11 +29,11 @@ def get_path(id_: str) -> str:
 
 # every supported model and its agent (each has a price in its agent's table)
 MODELS = {
-    'gpt-6-luna': AgentOpenAI,
-    'gpt-6.1-sol': AgentOpenAI,
-    'claude-haiku-4-5': AgentAnthropic,
-    'claude-sonnet-5-5': AgentAnthropic,
-    'claude-opus-5-5': AgentAnthropic,
+    'gpt-6-luna': AgentOpenAILP,
+    'gpt-6.1-sol': AgentOpenAILP,
+    'claude-haiku-4-5': AgentAnthropicLP,
+    'claude-sonnet-5-5': AgentAnthropicLP,
+    'claude-opus-5-5':  AgentAnthropicLP,
 }
 
 def check_model(model: str):
