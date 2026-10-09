@@ -85,7 +85,7 @@ The set may include failing policies (score `# -999`, then a `# error: {{message
 
 The provided policies are only examples. The goal is the highest possible score, not staying close to them. You are free to propose a completely different policy: redesign the decision logic, use any information available in `config` and `observation`, keep internal state between steps, and so on.
 
-Every policy must decide its flows by solving a linear program each week: build the variables (e.g. flows per route and week over a planning horizon), the cost to minimise and the constraints from `config` and `observation`, solve it, and play the first week of the solution.
+Every policy must decide its actions by solving a linear program.
 
 Rules:
 1. Every policy you propose must adhere strictly to the interface described in the environment context.
