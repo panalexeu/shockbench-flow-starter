@@ -27,21 +27,21 @@ def create_policy_dir():
 def get_path(id_: str) -> str: 
     return _policy_dir + '/' + id_ + '.py'
 
-# every supported model and its agent (each has a price in its agent's table)
+# every supported model and its agents, (plain, lp) (each has a price in its agent's table)
 MODELS = {
-    'gpt-6-luna': AgentOpenAILP,
-    'gpt-6.1-sol': AgentOpenAILP,
-    'claude-haiku-4-5': AgentAnthropicLP,
-    'claude-sonnet-5-5': AgentAnthropicLP,
-    'claude-opus-5-5':  AgentAnthropicLP,
+    'gpt-6-luna': (AgentOpenAI, AgentOpenAILP),
+    'gpt-6.1-sol': (AgentOpenAI, AgentOpenAILP),
+    'claude-haiku-4-5': (AgentAnthropic, AgentAnthropicLP),
+    'claude-sonnet-5-5': (AgentAnthropic, AgentAnthropicLP),
+    'claude-opus-5-5':  (AgentAnthropic, AgentAnthropicLP),
 }
 
 def check_model(model: str):
     if model not in MODELS:
         raise SystemExit(f'unknown model {model!r}: choose one of {list(MODELS)}')
 
-def make_agent(model: str, reasoning: str, postfix: str | None):
-    return MODELS[model](model, reasoning, postfix)
+def make_agent(model: str, reasoning: str, postfix: str | None, lp: bool):
+    return MODELS[model][lp](model, reasoning, postfix)
 
 def write_log(log: dict):
     # rewritten whole every iteration, so the file is valid JSON even if the run stops
@@ -162,6 +162,7 @@ def main(
     beta_reasoning: str = 'none', 
     alpha_name: str = 'gpt-6.1-sol',
     beta_name: str = 'gpt-6-luna',    
+    lp: bool = False,  # the agents whose prompt asks for a linear-program policy
 ):
     global _policy_dir, _fail_policy_dir
     if policy_dir is not None:
@@ -203,9 +204,9 @@ def main(
         # model selection 
         is_alpha = ((i % alpha_i) == 0) and alpha_model
         if is_alpha: 
-            agent = make_agent(alpha_name, alpha_reasoning, postfix)
+            agent = make_agent(alpha_name, alpha_reasoning, postfix, lp)
         else: 
-            agent = make_agent(beta_name, beta_reasoning, postfix)
+            agent = make_agent(beta_name, beta_reasoning, postfix, lp)
 
         #  sample policies => update state 
         sample_ids = sample_policies(rng, all_policies, sample_n, sample_t)
