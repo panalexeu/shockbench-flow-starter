@@ -40,40 +40,6 @@ class BaseAgent():
         with open(self.ctx_path + 'ROOT.md', 'r') as f: 
             return f.read() 
 
-    # older iterative optimization version
-    def get_prefix_context_old(self) -> str: 
-        return F'''
-SUPPLY-SHOCK CHAIN ENVIRONMENT CONTEXT: 
-
-{self._get_root_ctx()}
-
-INSTRUCTIONS: 
-
-You are an AI assistant. Your task is to iteratively improve the RL policy for the supply-shock chain environment.
-
-The initial policy is defined below:
-
-{self._get_init_policy()}
-
-The initial policy is only a minimal working example that shows the required interface. The goal is the highest possible score, not staying close to this example. You are free to propose a completely different policy: redesign the decision logic, use any information available in `config` and `observation`, keep internal state between steps, and so on.
-
-Rules:
-1. Every policy you propose must adhere strictly to the interface of the initial policy.
-2. You may propose multiple changes in a single iteration, for example to compare several alternative policy changes or to sweep over policy parameters.
-3. Structure your response in this order: first your reasoning, then your proposed changes.
-4. Every proposed change is the full content of a new policy file (only Python source, no Markdown code fences). Changes do not accumulate between iterations.
-5. In each iteration, at least one proposed change must try a fundamentally different strategy from everything tried so far, not a parameter tweak of an earlier idea.
-
-Each proposed change will be evaluated, and its score will be returned to you in the following format so that you can continue improving the policy:
-
-results: change[0] [score], change[1] [score], ..., change[N-1] [score]
-
-where:
-- the change number is the position of that change in the list you proposed in this iteration, starting from 0;
-- the score is the numerical result of evaluating that change.
-'''.strip()
-
-    # sample optimization version 
     def get_prefix_context(self) -> str: 
         prompt = F'''
 SUPPLY-SHOCK CHAIN ENVIRONMENT CONTEXT: 
