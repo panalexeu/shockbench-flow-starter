@@ -1,0 +1,329 @@
+{
+ "meta": {
+  "task": "small",
+  "entropy": 2004,
+  "train_episodes": 16,
+  "holdout": "dev",
+  "quick": false,
+  "iters": 24,
+  "alpha_model": false,
+  "alpha": 0.25,
+  "sample_n": 3,
+  "sample_e": 2,
+  "sample_t": 1.0,
+  "policy_dir": null,
+  "postfix": null,
+  "alpha_reasoning": "low",
+  "beta_reasoning": "low",
+  "alpha_name": "gpt-6.1-sol",
+  "beta_name": "gpt-6.1-sol",
+  "lp": true
+ },
+ "iterations": [
+  {
+   "iter": 0,
+   "model": "gpt-6.1-sol",
+   "reasoning_effort": "low",
+   "reasoning": "Start with a rolling-horizon linear program rather than fixed shipping rules. The policy jointly allocates inventory and route capacity, accounts for in-transit shipments and chokepoint queues, and balances demand fulfillment against replenishment of production inputs and grid fuel. It uses conservative production forecasts, respects observed prohibitions, and avoids dispatches whose routes are expected to close before arrival.",
+   "proposed": [
+    {
+     "hash": "b5d64ac044bf",
+     "reward": -1.590894016732159
+    }
+   ],
+   "sampled": [],
+   "usage": {
+    "input_tokens": 4859,
+    "output_tokens": 3447,
+    "cached_tokens": 0,
+    "cache_write_tokens": 4838,
+    "cost": 0.046607
+   }
+  },
+  {
+   "iter": 1,
+   "model": "gpt-6.1-sol",
+   "reasoning_effort": "low",
+   "reasoning": "The existing policy forecasts chip output without consuming production inputs, so its LP can satisfy demand with fictitious supply and underfund the real production chain. The replacement models wafer-to-raw-chip and raw-to-finished-chip conversion explicitly, includes production lead times and shared capacities, and carries unmet backlog through the planning horizon. It also values terminal inventory to reduce horizon starvation and uses nominal pipeline information to estimate fuel requirements rather than repeatedly consuming a fraction of current inventory.",
+   "proposed": [
+    {
+     "hash": "078054dba65a",
+     "reward": -0.8080400360392034
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "b5d64ac044bf",
+     "reward": -1.590894016732159
+    }
+   ],
+   "usage": {
+    "input_tokens": 7479,
+    "output_tokens": 3765,
+    "cached_tokens": 4838,
+    "cache_write_tokens": 0,
+    "cost": 0.043415800000000004
+   }
+  },
+  {
+   "iter": 2,
+   "model": "gpt-6.1-sol",
+   "reasoning_effort": "low",
+   "reasoning": "The existing policies depend heavily on speculative production and fuel forecasts over a long horizon. Errors in those forecasts can cause unnecessary freight or leave real demand undersupplied. This policy instead solves two linear programs each week: a steady-state network allocation to estimate useful throughput, followed by a stock-constrained replenishment allocation. Replenishment accounts for inventory already in transit, production in progress, and chokepoint queues, with lead-time-dependent inventory targets. Fuel requirements are estimated from the initial shipment network rather than an arbitrary inventory depletion assumption.",
+   "proposed": [
+    {
+     "hash": "4010fd5a7f89",
+     "reward": -0.9428338994169324
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "078054dba65a",
+     "reward": -0.8080400360392034
+    },
+    {
+     "hash": "b5d64ac044bf",
+     "reward": -1.590894016732159
+    }
+   ],
+   "usage": {
+    "input_tokens": 10561,
+    "output_tokens": 3736,
+    "cached_tokens": 4838,
+    "cache_write_tokens": 0,
+    "cost": 0.0492898
+   }
+  },
+  {
+   "iter": 3,
+   "model": "gpt-6.1-sol",
+   "reasoning_effort": "low",
+   "reasoning": "The existing policies rely on fixed fuel-consumption estimates and short planning horizons, and can plan dispatches using stock that has not yet arrived. This policy uses a longer rolling-horizon LP, learns grid fuel consumption from observed inventory changes, models chip conversions and backlog explicitly, and constrains current dispatches to available stock. Announced prohibitions and closure end dates affect route availability, while modest terminal reserves reduce horizon-end starvation.",
+   "proposed": [
+    {
+     "hash": "b45ad6202ab0",
+     "reward": -1.1750083943150118
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "078054dba65a",
+     "reward": -0.8080400360392034
+    },
+    {
+     "hash": "b5d64ac044bf",
+     "reward": -1.590894016732159
+    },
+    {
+     "hash": "4010fd5a7f89",
+     "reward": -0.9428338994169324
+    }
+   ],
+   "usage": {
+    "input_tokens": 13483,
+    "output_tokens": 3646,
+    "cached_tokens": 4838,
+    "cache_write_tokens": 0,
+    "cost": 0.054233800000000006
+   }
+  },
+  {
+   "iter": 4,
+   "model": "gpt-6.1-sol",
+   "reasoning_effort": "low",
+   "reasoning": "The earlier policies rely on speculative production and fuel models, which can distort routing priorities. This policy instead uses the initial pipeline to estimate nominal replenishment rates, updates consumption estimates from observed stock changes, and solves a capacity-constrained inventory-position LP each week. It accounts for queued cargo, penalizes shortages more strongly than safety-stock deficits, and reduces replenishment near the episode end.",
+   "proposed": [
+    {
+     "hash": "a6cb4fd52203",
+     "reward": -1.0129659972829614
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "078054dba65a",
+     "reward": -0.8080400360392034
+    },
+    {
+     "hash": "4010fd5a7f89",
+     "reward": -0.9428338994169324
+    },
+    {
+     "hash": "b45ad6202ab0",
+     "reward": -1.1750083943150118
+    }
+   ],
+   "usage": {
+    "input_tokens": 13994,
+    "output_tokens": 3072,
+    "cached_tokens": 4838,
+    "cache_write_tokens": 0,
+    "cost": 0.049515800000000006
+   }
+  },
+  {
+   "iter": 5,
+   "model": "gpt-6.1-sol",
+   "reasoning_effort": "low",
+   "reasoning": "The existing policies rely on approximate production and fuel models that can distort replenishment priorities. This policy instead uses the nominal pipeline and initial inventory as empirical inventory-position targets, then adapts consumption estimates from observed stock changes. A weekly LP allocates available stock across replenishment deficits, shared route capacities, and shortage priorities. It retains separate targets for each fuel and production input, uses actual executed flows for learning, and avoids dispatching shipments that cannot reach a demand sink before the horizon.",
+   "proposed": [
+    {
+     "hash": "23c1e364d3b6",
+     "reward": 0.15664234109904618
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "078054dba65a",
+     "reward": -0.8080400360392034
+    },
+    {
+     "hash": "4010fd5a7f89",
+     "reward": -0.9428338994169324
+    },
+    {
+     "hash": "a6cb4fd52203",
+     "reward": -1.0129659972829614
+    }
+   ],
+   "usage": {
+    "input_tokens": 13417,
+    "output_tokens": 3099,
+    "cached_tokens": 4838,
+    "cache_write_tokens": 0,
+    "cost": 0.0486318
+   }
+  },
+  {
+   "iter": 6,
+   "model": "gpt-6.1-sol",
+   "reasoning_effort": "low",
+   "reasoning": "The strongest policy provides a useful nominal inventory baseline, but treats all queued cargo as reliable replenishment and uses fixed lead times even when normal routes close. This policy retains its LP inventory controller while discounting disrupted inbound cargo, adapting replenishment horizons to feasible routes, learning actual industrial consumption, and separating urgent replenishment from lower-value safety stock. Announced prohibitions are incorporated into route feasibility.",
+   "proposed": [
+    {
+     "hash": "7b8e84ebd66a",
+     "reward": 0.11452455825280565
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "a6cb4fd52203",
+     "reward": -1.0129659972829614
+    },
+    {
+     "hash": "23c1e364d3b6",
+     "reward": 0.15664234109904618
+    },
+    {
+     "hash": "4010fd5a7f89",
+     "reward": -0.9428338994169324
+    }
+   ],
+   "usage": {
+    "input_tokens": 12882,
+    "output_tokens": 3218,
+    "cached_tokens": 4838,
+    "cache_write_tokens": 0,
+    "cost": 0.048751800000000005
+   }
+  },
+  {
+   "iter": 7,
+   "model": "gpt-6.1-sol",
+   "reasoning_effort": "low",
+   "reasoning": "The strongest policy uses nominal inventory-position targets, so I retain that structure. The main changes address disrupted replenishment: queued cargo on closed or prohibited routes receives only partial inventory credit, lead-time targets adapt to currently usable routes, and announced prohibitions are checked at the estimated traversal week. Consumption estimates are prevented from collapsing during temporary shortages. All dispatch decisions still come from a capacity-constrained linear program.",
+   "proposed": [
+    {
+     "hash": "0815bb29cae2",
+     "reward": 0.15639027155412244
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "7b8e84ebd66a",
+     "reward": 0.11452455825280565
+    },
+    {
+     "hash": "23c1e364d3b6",
+     "reward": 0.15664234109904618
+    },
+    {
+     "hash": "4010fd5a7f89",
+     "reward": -0.9428338994169324
+    }
+   ],
+   "usage": {
+    "input_tokens": 13192,
+    "output_tokens": 3443,
+    "cached_tokens": 4838,
+    "cache_write_tokens": 0,
+    "cost": 0.0516218
+   }
+  },
+  {
+   "iter": 8,
+   "model": "gpt-6.1-sol",
+   "reasoning_effort": "low",
+   "reasoning": "The strongest policy uses inventory-position LPs, but treats delayed and imminent shipments identically. This can leave demand unserved while enough inventory is nominally in transit. The proposed policy retains that approach and adds time-sensitive coverage constraints, discounts cargo trapped behind disruptions, updates replenishment lead times when ordinary routes are unavailable, and remembers network observations through blackouts. All dispatch decisions are obtained from a linear program.",
+   "proposed": [
+    {
+     "hash": "fc59c0bf9220",
+     "reward": 0.05944629376816312
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "7b8e84ebd66a",
+     "reward": 0.11452455825280565
+    },
+    {
+     "hash": "23c1e364d3b6",
+     "reward": 0.15664234109904618
+    },
+    {
+     "hash": "0815bb29cae2",
+     "reward": 0.15639027155412244
+    }
+   ],
+   "usage": {
+    "input_tokens": 13248,
+    "output_tokens": 3632,
+    "cached_tokens": 4838,
+    "cache_write_tokens": 0,
+    "cost": 0.053623800000000006
+   }
+  },
+  {
+   "iter": 9,
+   "model": "gpt-6.1-sol",
+   "reasoning_effort": "low",
+   "reasoning": "The strongest policy is a useful base-stock LP, but it treats delayed cargo as immediately useful and estimates consumption using arrivals from the wrong state transition. This version retains that approach while correcting arrival timing, caching network observations during blackouts, mildly discounting blocked pipeline cargo, and adding a small lead-time preference. Announced prohibitions are checked at the estimated traversal week. Inventory targets remain conservative to avoid the excessive emergency shipments seen in the lower-scoring variants.",
+   "proposed": [
+    {
+     "hash": "e6b79bd6299b",
+     "reward": 0.14707009746444608
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "23c1e364d3b6",
+     "reward": 0.15664234109904618
+    },
+    {
+     "hash": "fc59c0bf9220",
+     "reward": 0.05944629376816312
+    },
+    {
+     "hash": "7b8e84ebd66a",
+     "reward": 0.11452455825280565
+    }
+   ],
+   "usage": {
+    "input_tokens": 13477,
+    "output_tokens": 3346,
+    "cached_tokens": 4838,
+    "cache_write_tokens": 0,
+    "cost": 0.051221800000000005
+   }
+  }
+ ]
+}

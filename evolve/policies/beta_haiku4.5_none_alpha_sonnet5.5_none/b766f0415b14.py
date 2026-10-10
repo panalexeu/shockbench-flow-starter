@@ -1,0 +1,67 @@
+# 0.5576180987991295
+import numpy as np
+
+class Agent:
+    def __init__(self, config=None):
+        st = config["static"]
+        self.st = st
+        self.n_over = len(st["override_slots"]["chokepoint"])
+        self.n_rel = len(config["layout"]["release_pairs"])
+        edges = st["edges"]
+        self.tail = list(edges["tail"])
+        self.head = list(edges["head"])
+        self.u0 = np.array([np.inf if x is None else float(x) for x in edges["u0"]], dtype=float)
+        self.slot_edge = list(st["action_slots"]["edge"])
+        self.slot_k = list(st["action_slots"]["k"])
+        self.slot_lane = list(st["action_slots"]["lane"])
+        self.lane_edges = st["lanes"]["edges"]
+        self.stock_idx = {}
+        for r, (nd, k) in enumerate(config["layout"]["stock_slots"]):
+            self.stock_idx[(int(nd), int(k))] = r
+
+    def act(self, obs):
+        u = np.array(obs["graph_now.u"], dtype=float)
+        uo = np.array(obs["graph_now.u.observed"]) if "graph_now.u.observed" in obs else np.ones_like(u)
+        cap = np.where(uo > 0, u, self.u0)
+        cap = np.where(np.isfinite(cap), cap, 0.0)
+        cap = np.clip(cap, 0, None)
+        
+        stock = np.array(obs["stock.qty"], dtype=float)
+        stock = np.clip(stock, 0, None)
+        
+        mask = np.array(obs["action_mask"], dtype=float)
+        
+        n = len(self.slot_edge)
+        flows = np.zeros(n)
+        
+        # Calculate capacity per slot (accounting for lanes)
+        for i in range(n):
+            lane = self.slot_lane[i]
+            if lane is None:
+                c_slot = cap[self.slot_edge[i]]
+            else:
+                if lane < len(self.lane_edges) and self.lane_edges[lane]:
+                    c_slot = min(cap[e] for e in self.lane_edges[lane])
+                else:
+                    c_slot = 0.0
+            flows[i] = max(c_slot, 0.0)
+        
+        # Ensure we don't exceed available stock
+        groups = {}
+        for i in range(n):
+            key = (int(self.tail[self.slot_edge[i]]), int(self.slot_k[i]))
+            if key in self.stock_idx:
+                groups.setdefault(key, []).append(i)
+        
+        for key, idxs in groups.items():
+            avail = max(stock[self.stock_idx[key]], 0.0)
+            total_requested = sum(flows[i] for i in idxs)
+            if total_requested > avail and total_requested > 0:
+                scale_factor = avail / total_requested
+                for i in idxs:
+                    flows[i] *= scale_factor
+        
+        # Apply action mask
+        flows = flows * mask
+        
+        return {"flows": flows, "override_qty": np.zeros(self.n_over), "release_mode": np.zeros(self.n_rel, dtype=np.int64)}

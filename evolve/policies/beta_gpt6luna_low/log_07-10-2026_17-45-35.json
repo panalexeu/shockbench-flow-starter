@@ -1,0 +1,866 @@
+{
+ "meta": {
+  "task": "small",
+  "entropy": 2004,
+  "train_episodes": 16,
+  "holdout": "dev",
+  "quick": false,
+  "iters": 24,
+  "alpha_model": false,
+  "alpha": 0.25,
+  "sample_n": 4,
+  "sample_e": 2,
+  "sample_t": 1.0,
+  "lm_t": 1.0,
+  "top_p": 0.98,
+  "policy_dir": null,
+  "postfix": "A good baseline to start from: import numpy as np\n\nclass Agent:\n    def __init__(self, config=None):\n        static = config[\"static\"]  \n        action = config[\"spaces\"][\"action\"]\n        u0 = static[\"edges\"][\"u0\"] \n        self.capacity = np.array([u0[e] for e in static[\"action_slots\"][\"edge\"]], dtype=float)\n        self.override_qty = np.zeros(action[\"override_qty\"][\"shape\"])\n        self.release_mode = np.zeros(action[\"release_mode\"][\"shape\"], dtype=np.int64)  \n        self.rng = np.random.default_rng(config[\"policy_seed\"])\n\n    def act(self, observation):\n        flows = self.capacity * observation[\"action_mask\"]\n        return {\"flows\": flows, \"override_qty\": self.override_qty, \"release_mode\": self.release_mode}",
+  "alpha_reasoning": "low",
+  "beta_reasoning": "low"
+ },
+ "iterations": [
+  {
+   "iter": 0,
+   "reasoning": "No example policies were provided. This policy uses a demand-pull heuristic instead of dispatching every slot at capacity: it estimates unmet near-term sink demand, accounts for stock and incoming shipments, finds low-cost routes for each commodity, and sends available inventory or supply toward the next step on those routes. It reads network dimensions and indices from the configuration and observation, so it does not rely on Small-specific shapes. This is a heuristic rather than a full production or multi-week optimizer.",
+   "proposed": [
+    {
+     "hash": "58204ef835da",
+     "reward": -2.1076266577983516
+    }
+   ],
+   "sampled": [],
+   "usage": {
+    "input_tokens": 5000,
+    "output_tokens": 3114,
+    "cached_tokens": 0,
+    "cache_write_tokens": 4979,
+    "cost": 0.002181475
+   }
+  },
+  {
+   "iter": 1,
+   "reasoning": "The supplied policy can fail to move goods through multi-leg routes: it allocates only the first leg, then treats that dispatch as satisfying sink need, even if the cargo is still far from the sink. This replacement routes current inventory and available supply along a shortest feasible path, dispatching only the first leg so the next week's observation can guide subsequent legs. It accounts for route lead time, freight, current prohibitions and chokepoint openings, and limits dispatches by shared edge capacity. Demand targets are kept near-term to avoid filling the network with unnecessary stock.",
+   "proposed": [
+    {
+     "hash": "2211e212be0c",
+     "reward": -2.110498143695876
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "58204ef835da",
+     "reward": -2.1076266577983516
+    }
+   ],
+   "usage": {
+    "input_tokens": 7281,
+    "output_tokens": 2577,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.00156849
+   }
+  },
+  {
+   "iter": 2,
+   "reasoning": "The supplied policies route only the first leg of a planned path and can repeatedly dispatch toward demand without accounting well for shared capacities or goods already headed to sinks. This replacement uses the current usable action slots to build commodity-specific routes, prioritizes sinks by shortage penalty, and allocates available stock and supply over the least-cost reachable first legs. It accounts for near-term demand and pipeline shipments arriving at sinks, and respects edge, lane, and chokepoint capacity when choosing flows.",
+   "proposed": [
+    {
+     "hash": "0f60b192e7ae",
+     "reward": -2.108179217168013
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "58204ef835da",
+     "reward": -2.1076266577983516
+    },
+    {
+     "hash": "2211e212be0c",
+     "reward": -2.110498143695876
+    }
+   ],
+   "usage": {
+    "input_tokens": 9175,
+    "output_tokens": 2856,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.00189739
+   }
+  },
+  {
+   "iter": 3,
+   "reasoning": "The supplied policies use a short fixed demand window and can under-order when a route\u2019s lead time is longer. This policy sizes demand coverage using route lead times, subtracts stock at sinks and observed inbound shipments, then dispatches available inventory and supply along the cheapest currently usable routes. It tracks edge capacities across dispatches and avoids sending cargo without a reachable sink need.",
+   "proposed": [
+    {
+     "hash": "0bef2f3e7bf5",
+     "reward": -2.114381008639432
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "0f60b192e7ae",
+     "reward": -2.108179217168013
+    },
+    {
+     "hash": "58204ef835da",
+     "reward": -2.1076266577983516
+    },
+    {
+     "hash": "2211e212be0c",
+     "reward": -2.110498143695876
+    }
+   ],
+   "usage": {
+    "input_tokens": 11311,
+    "output_tokens": 2895,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0021304899999999996
+   }
+  },
+  {
+   "iter": 4,
+   "reasoning": "The supplied policies use shortest-path heuristics but can ship inventory toward a sink without consistently accounting for how much is already on the way, and their demand horizons risk over-ordering. This policy plans against a short, lead-time-aware forecast window, subtracts incoming shipments at their actual destination, and greedily allocates available stock and supply over usable routes while respecting shared edge capacity. It also leaves tanker release controls at their default behavior rather than issuing empty overrides.",
+   "proposed": [
+    {
+     "hash": "eefa78ab2294",
+     "reward": -2.109459066232265
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "2211e212be0c",
+     "reward": -2.110498143695876
+    },
+    {
+     "hash": "58204ef835da",
+     "reward": -2.1076266577983516
+    },
+    {
+     "hash": "0f60b192e7ae",
+     "reward": -2.108179217168013
+    },
+    {
+     "hash": "0bef2f3e7bf5",
+     "reward": -2.114381008639432
+    }
+   ],
+   "usage": {
+    "input_tokens": 13470,
+    "output_tokens": 3021,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.00240939
+   }
+  },
+  {
+   "iter": 5,
+   "reasoning": "The supplied policies use shortest-path routing but can dispatch cargo from an origin based on a sink\u2019s full near-term need without accounting for other routes and shared capacity consistently. This version allocates each commodity\u2019s available stock and supply across sink deficits, subtracts inventory and near-term pipeline at sinks, and sends only the first route segment toward demand. It also respects lane routes, prohibitions, and shared edge capacity, while leaving tanker overrides at their default release behavior.",
+   "proposed": [
+    {
+     "hash": "224b1815468e",
+     "reward": -2.1098290908941038
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "58204ef835da",
+     "reward": -2.1076266577983516
+    },
+    {
+     "hash": "0f60b192e7ae",
+     "reward": -2.108179217168013
+    },
+    {
+     "hash": "eefa78ab2294",
+     "reward": -2.109459066232265
+    },
+    {
+     "hash": "2211e212be0c",
+     "reward": -2.110498143695876
+    }
+   ],
+   "usage": {
+    "input_tokens": 13521,
+    "output_tokens": 2813,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0023104899999999997
+   }
+  },
+  {
+   "iter": 6,
+   "reasoning": "The supplied policies use similar greedy routing, but can over-order against forecasts, neglect route closure capacity, and mishandle stock/supply accounting. This policy uses a shorter replenishment target, credits observed incoming shipments, computes usable routes from the current action slots, and allocates available inventory and supply while tracking shared edge and lane capacity. It also avoids dispatching merely to fill capacity.",
+   "proposed": [
+    {
+     "hash": "9ca070e86ce4",
+     "reward": -2.109826214799714
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "eefa78ab2294",
+     "reward": -2.109459066232265
+    },
+    {
+     "hash": "224b1815468e",
+     "reward": -2.1098290908941038
+    },
+    {
+     "hash": "0f60b192e7ae",
+     "reward": -2.108179217168013
+    },
+    {
+     "hash": "58204ef835da",
+     "reward": -2.1076266577983516
+    }
+   ],
+   "usage": {
+    "input_tokens": 13782,
+    "output_tokens": 2873,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.00236659
+   }
+  },
+  {
+   "iter": 7,
+   "reasoning": "The supplied policies dispatch through a shortest-path heuristic, but their multi-week demand buffers can trigger costly excess shipments, and they do not adequately account for route capacity shared across action slots. This replacement uses a shorter demand window, credits near-term pipeline arrivals at sinks, and greedily routes available stock or supply to the highest-penalty unmet demand while reserving shared edge capacity. It leaves override releases at their default.",
+   "proposed": [
+    {
+     "hash": "a371a28876e5",
+     "reward": -2.108768480536383
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "58204ef835da",
+     "reward": -2.1076266577983516
+    },
+    {
+     "hash": "0f60b192e7ae",
+     "reward": -2.108179217168013
+    },
+    {
+     "hash": "9ca070e86ce4",
+     "reward": -2.109826214799714
+    },
+    {
+     "hash": "eefa78ab2294",
+     "reward": -2.109459066232265
+    }
+   ],
+   "usage": {
+    "input_tokens": 13784,
+    "output_tokens": 2851,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.00235579
+   }
+  },
+  {
+   "iter": 8,
+   "reasoning": "The provided policies use similar greedy path logic and score poorly. This version avoids treating stock already in transit to an intermediate node as demand-sink inventory, plans only against a short demand horizon, and explicitly checks chokepoint openness along full lane routes. It then repeatedly sends the cheapest available source-to-sink shipment while tracking shared edge capacity and source inventory for the week.",
+   "proposed": [
+    {
+     "hash": "590befd8bbab",
+     "reward": -2.108030827895761
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "0f60b192e7ae",
+     "reward": -2.108179217168013
+    },
+    {
+     "hash": "9ca070e86ce4",
+     "reward": -2.109826214799714
+    },
+    {
+     "hash": "0bef2f3e7bf5",
+     "reward": -2.114381008639432
+    },
+    {
+     "hash": "a371a28876e5",
+     "reward": -2.108768480536383
+    }
+   ],
+   "usage": {
+    "input_tokens": 13636,
+    "output_tokens": 2975,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.00240299
+   }
+  },
+  {
+   "iter": 9,
+   "reasoning": "The examples route greedily from currently stocked origins, but their multi-hop accounting can repeatedly favor a locally cheap first leg without weighing whether that dispatch meaningfully covers near-term demand. This policy instead builds commodity-specific usable routes, subtracts sink stock and near-term inbound shipments from projected demand, and allocates remaining need from available stock/supply along the cheapest reachable paths. It accounts for current route costs, tariffs, lead time, prohibitions, and shared edge capacity; tanker releases remain at the simulator's default behavior.",
+   "proposed": [
+    {
+     "hash": "80c197681c6d",
+     "reward": -2.108102180449284
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "224b1815468e",
+     "reward": -2.1098290908941038
+    },
+    {
+     "hash": "58204ef835da",
+     "reward": -2.1076266577983516
+    },
+    {
+     "hash": "eefa78ab2294",
+     "reward": -2.109459066232265
+    },
+    {
+     "hash": "590befd8bbab",
+     "reward": -2.108030827895761
+    }
+   ],
+   "usage": {
+    "input_tokens": 13883,
+    "output_tokens": 3048,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0024641900000000002
+   }
+  },
+  {
+   "iter": 10,
+   "reasoning": "The supplied policies mostly fail because they treat multi-edge routes as if the whole route can be dispatched in one week, while quantities are actually decisions on the route's first action slot. They also subtract shipments arriving at an intermediate node as though they were already available at the sink. This policy instead plans one currently executable first leg at a time, routes toward demand using current freight, tariffs, and lead times, and limits dispatch to a short demand window. It accounts for capacity shared by action slots and does not send through currently closed chokepoints.",
+   "proposed": [
+    {
+     "hash": "eab73db5243f",
+     "reward": -2.1078684849035882
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "58204ef835da",
+     "reward": -2.1076266577983516
+    },
+    {
+     "hash": "0f60b192e7ae",
+     "reward": -2.108179217168013
+    },
+    {
+     "hash": "80c197681c6d",
+     "reward": -2.108102180449284
+    },
+    {
+     "hash": "590befd8bbab",
+     "reward": -2.108030827895761
+    }
+   ],
+   "usage": {
+    "input_tokens": 13999,
+    "output_tokens": 2990,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.00244679
+   }
+  },
+  {
+   "iter": 11,
+   "reasoning": "The supplied policies use greedy, single-leg dispatching and can allocate transport to distant demand without adequately accounting for arrival times. This policy uses current freight, tariffs, and lead times to find inexpensive routes, then dispatches only against demand forecast within the route\u2019s delivery window. It also credits stock at the sink and shipments already arriving there, and respects shared edge capacity while dispatching.",
+   "proposed": [
+    {
+     "hash": "cd38f0f35753",
+     "reward": -2.107872794253004
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "58204ef835da",
+     "reward": -2.1076266577983516
+    },
+    {
+     "hash": "0f60b192e7ae",
+     "reward": -2.108179217168013
+    },
+    {
+     "hash": "9ca070e86ce4",
+     "reward": -2.109826214799714
+    },
+    {
+     "hash": "80c197681c6d",
+     "reward": -2.108102180449284
+    }
+   ],
+   "usage": {
+    "input_tokens": 13919,
+    "output_tokens": 3035,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.00246129
+   }
+  },
+  {
+   "iter": 12,
+   "reasoning": "The supplied policies use similar greedy routing logic and appear to over-dispatch or allocate inventory inefficiently. This replacement plans shortest usable routes from currently available stock and supply to each sink, dispatches only the first route segment this week, and accounts for sink inventory and pipeline arrivals before setting near-term demand. It reserves edge capacity across the week and prioritizes sinks with higher shortage penalties.",
+   "proposed": [
+    {
+     "hash": "fd46f6d69445",
+     "reward": -999.0
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "58204ef835da",
+     "reward": -2.1076266577983516
+    },
+    {
+     "hash": "eefa78ab2294",
+     "reward": -2.109459066232265
+    },
+    {
+     "hash": "0f60b192e7ae",
+     "reward": -2.108179217168013
+    },
+    {
+     "hash": "590befd8bbab",
+     "reward": -2.108030827895761
+    }
+   ],
+   "usage": {
+    "input_tokens": 13864,
+    "output_tokens": 2851,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.00236379
+   }
+  },
+  {
+   "iter": 13,
+   "reasoning": "The supplied policies all use a greedy path heuristic and score poorly. A key risk is repeatedly dispatching goods toward a sink without accounting well for remaining route capacity or the inventory already committed to that sink. This policy uses current legal action slots, route capacities, and freight/tariff/lead-time costs to select shipments from available stock or supply. It targets backlog plus a short demand horizon, while crediting observed shipments due to reach sinks soon. It leaves tanker overrides at the default release rather than guessing override quantities.",
+   "proposed": [
+    {
+     "hash": "aafb84fa9703",
+     "reward": -2.108749832622179
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "590befd8bbab",
+     "reward": -2.108030827895761
+    },
+    {
+     "hash": "cd38f0f35753",
+     "reward": -2.107872794253004
+    },
+    {
+     "hash": "0f60b192e7ae",
+     "reward": -2.108179217168013
+    },
+    {
+     "hash": "9ca070e86ce4",
+     "reward": -2.109826214799714
+    },
+    {
+     "hash": "fd46f6d69445",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 16042,
+    "output_tokens": 3184,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0027480900000000003
+   }
+  },
+  {
+   "iter": 14,
+   "reasoning": "The supplied policies use a multi-hop shortest-path calculation but dispatch only the first arc while inconsistently checking inventory at the path origin versus the first arc\u2019s source. This can cause poor allocations and leave demand unmet. The replacement repeatedly finds the cheapest currently feasible path from actual on-hand stock or this-week supply to each sink, dispatches only its first leg, and updates shared stock and edge capacity. It also avoids counting padded pipeline entries and accounts for shipments already scheduled to arrive at sinks soon.",
+   "proposed": [
+    {
+     "hash": "ef24f6ddfacf",
+     "reward": -2.1086946714478465
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "cd38f0f35753",
+     "reward": -2.107872794253004
+    },
+    {
+     "hash": "80c197681c6d",
+     "reward": -2.108102180449284
+    },
+    {
+     "hash": "eab73db5243f",
+     "reward": -2.1078684849035882
+    },
+    {
+     "hash": "58204ef835da",
+     "reward": -2.1076266577983516
+    },
+    {
+     "hash": "fd46f6d69445",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 16491,
+    "output_tokens": 2963,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0026824899999999996
+   }
+  },
+  {
+   "iter": 15,
+   "reasoning": "The supplied policies attempt multi-week replenishment, but several weaknesses can make them dispatch too much: they use broad forecast windows, often account for only a narrow slice of in-transit cargo, and can treat lane capacity inconsistently with current chokepoint openness. This policy uses a shorter demand target (backlog plus the next two forecast weeks), credits only near-term shipments arriving directly at a sink, and routes available stock or supply over the cheapest currently feasible action-slot paths. It respects route prohibitions, edge capacity, chokepoint openness, freight, tariffs, and lead times. It does not use overrides, leaving the default release behavior intact.",
+   "proposed": [
+    {
+     "hash": "3e09e17b5403",
+     "reward": -2.1087656307835307
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "eab73db5243f",
+     "reward": -2.1078684849035882
+    },
+    {
+     "hash": "2211e212be0c",
+     "reward": -2.110498143695876
+    },
+    {
+     "hash": "a371a28876e5",
+     "reward": -2.108768480536383
+    },
+    {
+     "hash": "ef24f6ddfacf",
+     "reward": -2.1086946714478465
+    },
+    {
+     "hash": "fd46f6d69445",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 16044,
+    "output_tokens": 3036,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.00267429
+   }
+  },
+  {
+   "iter": 16,
+   "reasoning": "The supplied policies use reasonable ingredients but their scores suggest their demand planning and routing are not working well enough. A safer approach is to route only currently available inventory or supply toward sinks, account for stock at sinks and shipments already arriving there soon, and allocate scarce capacity to the highest-penalty shortages first. The policy below uses shortest paths over currently permitted action slots; lane slots are treated as complete routes, with their full edge capacities reserved when dispatched.",
+   "proposed": [
+    {
+     "hash": "a34ede6ebeed",
+     "reward": -2.1086730513965266
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "80c197681c6d",
+     "reward": -2.108102180449284
+    },
+    {
+     "hash": "58204ef835da",
+     "reward": -2.1076266577983516
+    },
+    {
+     "hash": "a371a28876e5",
+     "reward": -2.108768480536383
+    },
+    {
+     "hash": "ef24f6ddfacf",
+     "reward": -2.1086946714478465
+    },
+    {
+     "hash": "fd46f6d69445",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 16425,
+    "output_tokens": 2846,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0026173900000000003
+   }
+  },
+  {
+   "iter": 17,
+   "reasoning": "The supplied policies use all-pairs paths but can commit stock to the wrong first hop, over-credit or under-credit pipeline shipments, and treat a multi-edge lane\u2019s capacity inconsistently. This replacement plans from currently available stock and supply to sink demand using the currently permitted action slots, prices freight, tariffs, and lead time, and respects shared edge capacity while allocating. It targets near-term forecast demand plus backlog rather than attempting to fill every route.",
+   "proposed": [
+    {
+     "hash": "0bfcadc0a486",
+     "reward": -2.108031991680676
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "cd38f0f35753",
+     "reward": -2.107872794253004
+    },
+    {
+     "hash": "eab73db5243f",
+     "reward": -2.1078684849035882
+    },
+    {
+     "hash": "9ca070e86ce4",
+     "reward": -2.109826214799714
+    },
+    {
+     "hash": "2211e212be0c",
+     "reward": -2.110498143695876
+    },
+    {
+     "hash": "fd46f6d69445",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 15915,
+    "output_tokens": 3116,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.00270139
+   }
+  },
+  {
+   "iter": 18,
+   "reasoning": "The examples mostly build plausible routes, but they commit to short demand horizons, do not consistently value tariffs, and can spend capacity on low-priority demand. This replacement uses current action slots as route arcs, finds least-cost paths to sinks, and allocates available stock and supply to higher-penalty sinks first. It accounts for lane capacities, prohibited slots, tariffs, and shipments already arriving directly at a sink. It leaves override releases at their default behavior.",
+   "proposed": [
+    {
+     "hash": "f45a1d88efab",
+     "reward": -2.107877857875421
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "ef24f6ddfacf",
+     "reward": -2.1086946714478465
+    },
+    {
+     "hash": "58204ef835da",
+     "reward": -2.1076266577983516
+    },
+    {
+     "hash": "a371a28876e5",
+     "reward": -2.108768480536383
+    },
+    {
+     "hash": "0f60b192e7ae",
+     "reward": -2.108179217168013
+    },
+    {
+     "hash": "fd46f6d69445",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 16216,
+    "output_tokens": 3149,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0027479899999999996
+   }
+  },
+  {
+   "iter": 19,
+   "reasoning": "The supplied policies all use variants of a greedy route planner, but they can dispatch too much against a short forecast, overlook tariff costs, and fail to reserve shared edge capacity consistently across routes. This replacement uses the current action mask, route capacities, chokepoint openness, freight, tariffs, and lead times to build commodity-specific paths. It directs available stock and supply toward high-penalty sinks, while accounting for near-term pipeline arrivals and sink inventory. It also avoids sending speculative quantities beyond the chosen demand window.",
+   "proposed": [
+    {
+     "hash": "3a57d164d4a5",
+     "reward": -2.1078633567229272
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "80c197681c6d",
+     "reward": -2.108102180449284
+    },
+    {
+     "hash": "aafb84fa9703",
+     "reward": -2.108749832622179
+    },
+    {
+     "hash": "a34ede6ebeed",
+     "reward": -2.1086730513965266
+    },
+    {
+     "hash": "58204ef835da",
+     "reward": -2.1076266577983516
+    },
+    {
+     "hash": "fd46f6d69445",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 16431,
+    "output_tokens": 3189,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.00278949
+   }
+  },
+  {
+   "iter": 20,
+   "reasoning": "The examples build routes but can dispatch only the first leg of a path, and their short-horizon demand estimates can trigger shipments that arrive too late or exceed near-term need. This policy instead finds the cheapest currently usable path from each stocked or supplied origin to each sink, dispatches only its first action, respects shared edge capacity, and targets forecast demand over a lead-time-aware window. It also accounts for inbound pipeline cargo at sinks and avoids prohibited slots.",
+   "proposed": [
+    {
+     "hash": "bf2c329b0858",
+     "reward": -2.1078793528609596
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "58204ef835da",
+     "reward": -2.1076266577983516
+    },
+    {
+     "hash": "0f60b192e7ae",
+     "reward": -2.108179217168013
+    },
+    {
+     "hash": "eab73db5243f",
+     "reward": -2.1078684849035882
+    },
+    {
+     "hash": "cd38f0f35753",
+     "reward": -2.107872794253004
+    },
+    {
+     "hash": "fd46f6d69445",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 16282,
+    "output_tokens": 3053,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.00270659
+   }
+  },
+  {
+   "iter": 21,
+   "reasoning": "The supplied policies route only commodities that are themselves demanded at sinks, so they can neglect intermediate materials needed by fabs and other production nodes. Reconstructing those production requirements robustly from the public tables is variant-dependent. This policy instead uses the instance\u2019s public nominal routing table (when available) to guide each commodity toward its nominal next destination, while retaining a sink-directed fallback. It sends only available stock or current supply, respects observed prohibitions and live capacities, and avoids treating a long forecast window as an immediate shipping target.",
+   "proposed": [
+    {
+     "hash": "d427c5b57a43",
+     "reward": -2.108697009571195
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "f45a1d88efab",
+     "reward": -2.107877857875421
+    },
+    {
+     "hash": "bf2c329b0858",
+     "reward": -2.1078793528609596
+    },
+    {
+     "hash": "3e09e17b5403",
+     "reward": -2.1087656307835307
+    },
+    {
+     "hash": "3a57d164d4a5",
+     "reward": -2.1078633567229272
+    },
+    {
+     "hash": "fd46f6d69445",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 16584,
+    "output_tokens": 3153,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.00278679
+   }
+  },
+  {
+   "iter": 22,
+   "reasoning": "The examples use graph paths to select a first dispatch leg, but can over- or under-ship when they confuse a path's origin with the first leg's source, and they omit tariff costs. This policy computes usable route arcs from the current mask and capacities, includes freight, tariffs, and lead time in path costs, and ships only toward forecasted demand after accounting for sink stock and near-term deliveries. It keeps the default release behavior for chokepoints rather than issuing uncalibrated overrides.",
+   "proposed": [
+    {
+     "hash": "30ef32c6fe6b",
+     "reward": -2.108031991680676
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "224b1815468e",
+     "reward": -2.1098290908941038
+    },
+    {
+     "hash": "a34ede6ebeed",
+     "reward": -2.1086730513965266
+    },
+    {
+     "hash": "a371a28876e5",
+     "reward": -2.108768480536383
+    },
+    {
+     "hash": "0bfcadc0a486",
+     "reward": -2.108031991680676
+    },
+    {
+     "hash": "fd46f6d69445",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 16166,
+    "output_tokens": 3011,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.00267399
+   }
+  },
+  {
+   "iter": 23,
+   "reasoning": "The provided policies use short-horizon sink targets and greedy routing, but they can over-order while shipments are already in transit and can mishandle capacity shared by multiple action slots. This policy builds commodity-specific paths from currently available stock and supply, accounts for near-term arrivals at sinks, and updates shared edge capacity as it assigns flows. Lane slots are treated as the complete route represented by that slot. The policy leaves override releases at their safe default.",
+   "proposed": [
+    {
+     "hash": "078a0f486847",
+     "reward": -2.1080279433737554
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "80c197681c6d",
+     "reward": -2.108102180449284
+    },
+    {
+     "hash": "a34ede6ebeed",
+     "reward": -2.1086730513965266
+    },
+    {
+     "hash": "58204ef835da",
+     "reward": -2.1076266577983516
+    },
+    {
+     "hash": "d427c5b57a43",
+     "reward": -2.108697009571195
+    },
+    {
+     "hash": "fd46f6d69445",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 16411,
+    "output_tokens": 2873,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.00262949
+   }
+  }
+ ]
+}

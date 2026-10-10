@@ -1,0 +1,367 @@
+{
+ "meta": {
+  "task": "small",
+  "entropy": 2004,
+  "train_episodes": 16,
+  "holdout": "dev",
+  "quick": false,
+  "iters": 24,
+  "alpha_model": true,
+  "alpha": 0.25,
+  "sample_n": 4,
+  "sample_e": 2,
+  "sample_t": 1.0,
+  "lm_t": 1.0,
+  "top_p": 0.98,
+  "policy_dir": null,
+  "postfix": "A good baseline to start from: import numpy as np\n\nclass Agent:\n    def __init__(self, config=None):\n        static = config[\"static\"]  \n        action = config[\"spaces\"][\"action\"]\n        u0 = static[\"edges\"][\"u0\"] \n        self.capacity = np.array([u0[e] for e in static[\"action_slots\"][\"edge\"]], dtype=float)\n        self.override_qty = np.zeros(action[\"override_qty\"][\"shape\"])\n        self.release_mode = np.zeros(action[\"release_mode\"][\"shape\"], dtype=np.int64)  \n        self.rng = np.random.default_rng(config[\"policy_seed\"])\n\n    def act(self, observation):\n        flows = self.capacity * observation[\"action_mask\"]\n        return {\"flows\": flows, \"override_qty\": self.override_qty, \"release_mode\": self.release_mode}",
+  "alpha_reasoning": "low",
+  "beta_reasoning": "none"
+ },
+ "iterations": [
+  {
+   "iter": 0,
+   "reasoning": "The capacity-only baseline can pay for redundant routes and accumulate excess inventory while still sending cargo toward closed chokepoints. This policy instead uses rolling inventory targets, accounts for stock and shipments already committed, and allocates replenishment across routes according to current cost, lead time, capacity, and chokepoint availability. Demand forecasts determine sink targets; nominal downstream throughput supplies conservative targets elsewhere. It also avoids dispatches that would arrive after the episode ends.",
+   "proposed": [
+    {
+     "hash": "07a5d0b9d4aa",
+     "reward": 0.5411596850310655
+    }
+   ],
+   "sampled": [],
+   "usage": {
+    "input_tokens": 5000,
+    "output_tokens": 2374,
+    "cached_tokens": 0,
+    "cache_write_tokens": 4979,
+    "cost": 0.0362295
+   }
+  },
+  {
+   "iter": 1,
+   "reasoning": "The existing policy already uses a useful demand-aware heuristic, but it can over-ship: it estimates demand at intermediate nodes from route capacity and adds all in-transit quantities to destination coverage regardless of arrival time. It also does not explicitly account for the limited throughput shared by chokepoints. The replacement keeps the route- and cost-aware structure, counts only near-term arrivals toward demand coverage, uses a short demand-coverage target, and tracks shared edge and chokepoint capacity while allocating shipments. It derives all dimensions and indices from the supplied configuration so it can run across variants.",
+   "proposed": [
+    {
+     "hash": "3cf29a75da32",
+     "reward": -2.1111482694451067
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "07a5d0b9d4aa",
+     "reward": 0.5411596850310655
+    }
+   ],
+   "usage": {
+    "input_tokens": 6753,
+    "output_tokens": 2425,
+    "cached_tokens": 0,
+    "cache_write_tokens": 4979,
+    "cost": 0.002012275
+   }
+  },
+  {
+   "iter": 2,
+   "reasoning": "The higher-scoring policy already uses route costs, current capacity, demand forecasts, and stock. Its main risk is treating every intermediate node as if it were a final destination: the route table can include useful intermediate inventory flows, but the need estimate is crude, while supply and shared capacities are greedily allocated. A more reliable improvement is to derive multi-hop paths from the public graph and prioritize shipments by demand value, favoring short, low-cost paths while explicitly accounting for inventory and in-transit arrivals at sinks. To avoid over-shipping intermediary goods without a model of their downstream use, this version limits decisions to routes whose destination is a demand sink and allocates supply greedily across sinks by shortage penalty and forecast need. It respects observed masks, route prohibitions, edge capacities, chokepoint throughput, current closures, and the episode horizon. It deliberately leaves override releases at their default behavior.",
+   "proposed": [
+    {
+     "hash": "766c2fcfc2ee",
+     "reward": -2.108107930446612
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "07a5d0b9d4aa",
+     "reward": 0.5411596850310655
+    },
+    {
+     "hash": "3cf29a75da32",
+     "reward": -2.1111482694451067
+    }
+   ],
+   "usage": {
+    "input_tokens": 8860,
+    "output_tokens": 2535,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0017053900000000002
+   }
+  },
+  {
+   "iter": 3,
+   "reasoning": "The strongest supplied policy is the first one, but it can over-dispatch intermediate goods: it treats nominal outgoing route capacity as continuing demand, and it does not model stock or supply consumed by earlier legs of a multi-week chain. That can fill the network with inventory that never serves a sink. The alternative below uses a receding-horizon linear program over the published network, current supply/stock, in-transit shipments, and forecast demand. It accounts for edge, chokepoint, and source constraints, penalizes unmet demand, and only values material flows insofar as they enable downstream production. SciPy is used when available; a conservative sink-routing fallback preserves interface compatibility if it is not.",
+   "proposed": [
+    {
+     "hash": "7e8eb75e15b8",
+     "reward": -2.1085142492894287
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "07a5d0b9d4aa",
+     "reward": 0.5411596850310655
+    },
+    {
+     "hash": "766c2fcfc2ee",
+     "reward": -2.108107930446612
+    },
+    {
+     "hash": "3cf29a75da32",
+     "reward": -2.1111482694451067
+    }
+   ],
+   "usage": {
+    "input_tokens": 11004,
+    "output_tokens": 4026,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.00266529
+   }
+  },
+  {
+   "iter": 4,
+   "reasoning": "The strongest policy maintains the full production chain; the weaker policies either understock intermediates or omit them. I retain that structure, but size buffers using the preferred economical route rather than the shortest available route, which can be an expensive air alternative. I also use the forecast's time profile, modestly increase buffers on impaired routes, and avoid dispatching cargo across announced prohibitions that take effect before its expected passage.",
+   "proposed": [
+    {
+     "hash": "020325e03933",
+     "reward": 0.5376517214071469
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "07a5d0b9d4aa",
+     "reward": 0.5411596850310655
+    },
+    {
+     "hash": "3cf29a75da32",
+     "reward": -2.1111482694451067
+    },
+    {
+     "hash": "766c2fcfc2ee",
+     "reward": -2.108107930446612
+    },
+    {
+     "hash": "7e8eb75e15b8",
+     "reward": -2.1085142492894287
+    }
+   ],
+   "usage": {
+    "input_tokens": 14572,
+    "output_tokens": 2351,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0431939
+   }
+  },
+  {
+   "iter": 5,
+   "reasoning": "The strongest supplied policies are around 0.54. Their main limitation is greedy dispatch: they do not account for downstream transfers when prioritizing demand, while the attempted multiweek LP has modeling errors that produced strongly negative scores. This policy keeps the reliable single-week approach, but plans routes over the public network from each available source toward sinks. It estimates route cost and lead time, prioritizes sink demand by shortage penalty and urgency, and tracks shared edge, source, and chokepoint capacities while dispatching. Pipeline and queued cargo are credited only when they are near-term arrivals, reducing unnecessary replenishment. All indexes and dimensions are derived from the supplied tables, so the policy is not tied to Small's shapes.",
+   "proposed": [
+    {
+     "hash": "7ed2cd0e1c71",
+     "reward": -2.108665345318672
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "07a5d0b9d4aa",
+     "reward": 0.5411596850310655
+    },
+    {
+     "hash": "020325e03933",
+     "reward": 0.5376517214071469
+    },
+    {
+     "hash": "7e8eb75e15b8",
+     "reward": -2.1085142492894287
+    },
+    {
+     "hash": "766c2fcfc2ee",
+     "reward": -2.108107930446612
+    }
+   ],
+   "usage": {
+    "input_tokens": 14486,
+    "output_tokens": 2553,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0022769899999999996
+   }
+  },
+  {
+   "iter": 6,
+   "reasoning": "The strongest supplied policies use a practical, one-step route allocator; the attempted multi-week LP performs very poorly, likely because its time-indexed balances and routing assumptions do not match the simulator\u2019s detailed dynamics. A safer improvement is to retain the successful allocator\u2019s structure while fixing two weaknesses: it can over-count far-future shipments as covering near-term demand, and it does not explicitly value shortage penalties or use the horizon of observed forecasts when setting replenishment targets. The policy below counts only pipeline arrivals within its replenishment window, uses a decaying forecast window plus backlog, and gives sink demand priority according to its configured shortage penalty. It also respects shared edge capacities, current route prohibitions, closures, and available source stock/supply. It deliberately leaves chokepoint release controls at their defaults rather than risking malformed or harmful overrides.",
+   "proposed": [
+    {
+     "hash": "3f27a22269bc",
+     "reward": -2.1122216085998775
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "07a5d0b9d4aa",
+     "reward": 0.5411596850310655
+    },
+    {
+     "hash": "020325e03933",
+     "reward": 0.5376517214071469
+    },
+    {
+     "hash": "3cf29a75da32",
+     "reward": -2.1111482694451067
+    },
+    {
+     "hash": "7e8eb75e15b8",
+     "reward": -2.1085142492894287
+    }
+   ],
+   "usage": {
+    "input_tokens": 14449,
+    "output_tokens": 2598,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.00229579
+   }
+  },
+  {
+   "iter": 7,
+   "reasoning": "The strongest supplied policy scores about 0.54, and its main weakness is that it estimates needs and route capacities locally: it can over-dispatch into intermediate nodes, count late arrivals as useful inventory, and ignore the value of serving high-penalty sinks. This replacement uses a rolling, time-expanded linear program when SciPy is available. It accounts for current inventory, available supply, known pipeline arrivals, near-term forecast demand, route lead times and capacities, and sink shortage penalties; only this week's dispatch is executed. It also models multi-edge lanes as single routes and imposes shared edge capacity. A heuristic fallback is included for environments without SciPy or if optimization fails.",
+   "proposed": [
+    {
+     "hash": "493322012848",
+     "reward": -2.1085142492894287
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "020325e03933",
+     "reward": 0.5376517214071469
+    },
+    {
+     "hash": "07a5d0b9d4aa",
+     "reward": 0.5411596850310655
+    },
+    {
+     "hash": "7e8eb75e15b8",
+     "reward": -2.1085142492894287
+    },
+    {
+     "hash": "3f27a22269bc",
+     "reward": -2.1122216085998775
+    }
+   ],
+   "usage": {
+    "input_tokens": 14560,
+    "output_tokens": 3628,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.00282189
+   }
+  },
+  {
+   "iter": 8,
+   "reasoning": "The strongest policy replenishes intermediate nodes as well as sinks; the failing policies under-supply that upstream chain. This proposal preserves that structure, but sizes inventory against the economically preferred route rather than the fastest available alternative. It also discounts cargo stranded behind closed chokepoints, checks announced prohibitions at expected passage times, and uses a slightly larger sink safety buffer. These changes aim to reduce shortages without imposing chokepoint dispatch limits that duplicate the simulator\u2019s release controls.",
+   "proposed": [
+    {
+     "hash": "37be7ec7469e",
+     "reward": 0.5422785429790424
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "020325e03933",
+     "reward": 0.5376517214071469
+    },
+    {
+     "hash": "07a5d0b9d4aa",
+     "reward": 0.5411596850310655
+    },
+    {
+     "hash": "7ed2cd0e1c71",
+     "reward": -2.108665345318672
+    },
+    {
+     "hash": "3cf29a75da32",
+     "reward": -2.1111482694451067
+    }
+   ],
+   "usage": {
+    "input_tokens": 13080,
+    "output_tokens": 2216,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0388599
+   }
+  },
+  {
+   "iter": 9,
+   "reasoning": "The strongest supplied policy scores about 0.542, while the other examples are substantially worse. Their common weakness is greedy routing: they only plan shipments that arrive directly at a demand sink, and they may overcount transit inventory or fail to reserve shared capacities consistently. For this Small task, propose a general policy that builds a time-expanded, commodity-specific view of the network, routes available stock and supply toward unmet forecast demand through intermediate nodes, and accounts for existing pipeline shipments at their actual destinations and arrival weeks. It uses a lightweight greedy allocation rather than relying on unavailable optimization packages, while respecting route prohibitions, edge capacities, chokepoint throughput, current closures, and shipment lead times. All sizes and indices are taken from the supplied configuration.",
+   "proposed": [
+    {
+     "hash": "bf9871054615",
+     "reward": -2.107878143996054
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "766c2fcfc2ee",
+     "reward": -2.108107930446612
+    },
+    {
+     "hash": "37be7ec7469e",
+     "reward": 0.5422785429790424
+    },
+    {
+     "hash": "3f27a22269bc",
+     "reward": -2.1122216085998775
+    },
+    {
+     "hash": "07a5d0b9d4aa",
+     "reward": 0.5411596850310655
+    }
+   ],
+   "usage": {
+    "input_tokens": 13007,
+    "output_tokens": 3405,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0025550900000000003
+   }
+  },
+  {
+   "iter": 10,
+   "reasoning": "The strongest supplied policy scores about 0.542, but its demand planning collapses the forecast into an average and treats all in-transit volume as equally reliable regardless of arrival time. This replacement keeps the same useful cost-aware route selection while planning against the week-by-week forecast, discounting shipments that are delayed or queued at closed chokepoints, respecting announced prohibitions, and avoiding unnecessary late-horizon shipments. It also accounts for chokepoint throughput when allocating routes. These are heuristic improvements; actual performance needs evaluation on the task scenarios.",
+   "proposed": [
+    {
+     "hash": "0501f6907898",
+     "reward": -2.112135433010746
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "3cf29a75da32",
+     "reward": -2.1111482694451067
+    },
+    {
+     "hash": "020325e03933",
+     "reward": 0.5376517214071469
+    },
+    {
+     "hash": "37be7ec7469e",
+     "reward": 0.5422785429790424
+    },
+    {
+     "hash": "07a5d0b9d4aa",
+     "reward": 0.5411596850310655
+    }
+   ],
+   "usage": {
+    "input_tokens": 12773,
+    "output_tokens": 3170,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.00241419
+   }
+  }
+ ]
+}

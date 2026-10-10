@@ -1,0 +1,329 @@
+{
+ "meta": {
+  "task": "small",
+  "entropy": 2004,
+  "train_episodes": 16,
+  "holdout": "dev",
+  "quick": false,
+  "iters": 24,
+  "alpha_model": false,
+  "alpha": 0.25,
+  "sample_n": 3,
+  "sample_e": 2,
+  "sample_t": 1.0,
+  "policy_dir": null,
+  "postfix": null,
+  "alpha_reasoning": "low",
+  "beta_reasoning": "low",
+  "alpha_name": "gpt-6.1-sol",
+  "beta_name": "gpt-6-luna",
+  "lp": true
+ },
+ "iterations": [
+  {
+   "iter": 0,
+   "model": "gpt-6-luna",
+   "reasoning_effort": "low",
+   "reasoning": "There are no existing policies to compare against, so this proposes a general LP-based dispatch policy. Each week's LP chooses route quantities and served demand, minimizing freight and tariff costs while valuing fulfilled demand by its shortage penalty. It builds route arcs from the public action-slot and lane tables, accounts for observed stock, supply, and shipments arriving this week, and applies observed prohibitions, edge capacities, and chokepoint throughput limits. The LP is a weekly approximation: it does not model future inventory or production decisions, but it produces feasible, coordinated routes rather than independent greedy shipments.",
+   "proposed": [
+    {
+     "hash": "2c74cbeff4c2",
+     "reward": -2.1111972654833036
+    }
+   ],
+   "sampled": [],
+   "usage": {
+    "input_tokens": 4859,
+    "output_tokens": 3921,
+    "cached_tokens": 0,
+    "cache_write_tokens": 4838,
+    "cost": 0.00256735
+   }
+  },
+  {
+   "iter": 1,
+   "model": "gpt-6-luna",
+   "reasoning_effort": "low",
+   "reasoning": "The supplied policy is myopic: it values service only against this week\u2019s demand, so it can fail to dispatch goods early enough to cover forecast demand when routes have lead time. This replacement solves a time-expanded LP over a short forecast horizon, accounting for route travel times, edge and chokepoint capacities, current inventory, current supply, and pipeline arrivals. The returned action is the first week\u2019s dispatch plan. Any unobserved or unavailable data is handled conservatively.",
+   "proposed": [
+    {
+     "hash": "3e151cca5469",
+     "reward": -2.1079320372648676
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "2c74cbeff4c2",
+     "reward": -2.1111972654833036
+    }
+   ],
+   "usage": {
+    "input_tokens": 7676,
+    "output_tokens": 3016,
+    "cached_tokens": 4838,
+    "cache_write_tokens": 0,
+    "cost": 0.00184018
+   }
+  },
+  {
+   "iter": 2,
+   "model": "gpt-6-luna",
+   "reasoning_effort": "low",
+   "reasoning": "The supplied policies either optimize only the current week or use a short horizon with incomplete inventory accounting. This replacement uses a rolling-horizon LP with cumulative node/commodity inventory constraints, existing pipeline arrivals, forecast demand, and shared edge and chokepoint capacities. Cumulative balances let inventory carry forward between weeks, while route costs and shortage penalties guide the plan. Only the first week's dispatch is executed; the LP is solved again from the next observation.",
+   "proposed": [
+    {
+     "hash": "3fa3e2c395b5",
+     "reward": -2.1072837114335243
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "3e151cca5469",
+     "reward": -2.1079320372648676
+    },
+    {
+     "hash": "2c74cbeff4c2",
+     "reward": -2.1111972654833036
+    }
+   ],
+   "usage": {
+    "input_tokens": 10051,
+    "output_tokens": 3415,
+    "cached_tokens": 4838,
+    "cache_write_tokens": 0,
+    "cost": 0.00227718
+   }
+  },
+  {
+   "iter": 3,
+   "model": "gpt-6-luna",
+   "reasoning_effort": "low",
+   "reasoning": "The supplied policies plan multiple weeks ahead, but approximate future conditions by reusing this week\u2019s route costs, capacities, and restrictions. The new policy keeps a short-horizon LP for inventory-aware planning, explicitly models arrivals from both existing pipeline shipments and planned dispatches, and constrains route use by shared edge capacity. It returns only the first week\u2019s dispatches, as required by the interface.",
+   "proposed": [
+    {
+     "hash": "0028fcee14db",
+     "reward": -2.107347404137677
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "3fa3e2c395b5",
+     "reward": -2.1072837114335243
+    },
+    {
+     "hash": "2c74cbeff4c2",
+     "reward": -2.1111972654833036
+    },
+    {
+     "hash": "3e151cca5469",
+     "reward": -2.1079320372648676
+    }
+   ],
+   "usage": {
+    "input_tokens": 12748,
+    "output_tokens": 3215,
+    "cached_tokens": 4838,
+    "cache_write_tokens": 0,
+    "cost": 0.0024468800000000002
+   }
+  },
+  {
+   "iter": 4,
+   "model": "gpt-6-luna",
+   "reasoning_effort": "low",
+   "reasoning": "The supplied policies use a multi-week LP, but do not constrain shared chokepoint throughput, so their planned dispatches can exceed the actual throughput available on routes through a chokepoint. This replacement keeps a receding-horizon LP, adds shared edge and chokepoint-pool capacity constraints, and accounts for current stock, supply, pipeline arrivals, and demand backlog. Future dispatches remain planning variables; only the current week's flows are returned.",
+   "proposed": [
+    {
+     "hash": "e6e3e4691346",
+     "reward": -2.1073502733969542
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "3e151cca5469",
+     "reward": -2.1079320372648676
+    },
+    {
+     "hash": "3fa3e2c395b5",
+     "reward": -2.1072837114335243
+    },
+    {
+     "hash": "0028fcee14db",
+     "reward": -2.107347404137677
+    }
+   ],
+   "usage": {
+    "input_tokens": 12182,
+    "output_tokens": 3528,
+    "cached_tokens": 4838,
+    "cache_write_tokens": 0,
+    "cost": 0.0025467800000000002
+   }
+  },
+  {
+   "iter": 5,
+   "model": "gpt-6-luna",
+   "reasoning_effort": "low",
+   "reasoning": "The supplied policies omit chokepoint throughput constraints, so their LP can plan routes that exceed the network's shared chokepoint capacity. This replacement keeps the time-expanded LP approach, accounts for edge and chokepoint capacities in each modeled week, and respects current prohibitions, route costs, stock, supply, and observed pipeline arrivals. It returns only the first week's dispatches, as required by the weekly control interface.",
+   "proposed": [
+    {
+     "hash": "1898bb9f37dc",
+     "reward": -2.1073502733969542
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "3fa3e2c395b5",
+     "reward": -2.1072837114335243
+    },
+    {
+     "hash": "3e151cca5469",
+     "reward": -2.1079320372648676
+    },
+    {
+     "hash": "0028fcee14db",
+     "reward": -2.107347404137677
+    }
+   ],
+   "usage": {
+    "input_tokens": 12182,
+    "output_tokens": 3146,
+    "cached_tokens": 4838,
+    "cache_write_tokens": 0,
+    "cost": 0.00235578
+   }
+  },
+  {
+   "iter": 6,
+   "model": "gpt-6-luna",
+   "reasoning_effort": "low",
+   "reasoning": "The supplied policies plan several weeks ahead, but only the first week\u2019s flows are actually executed. A useful improvement is to reduce the optimizer\u2019s incentive to dispatch in later planning weeks: those plans are only approximations because future network conditions and supply are unknown. The policy below retains the multi-week inventory and arrival planning, while applying a stronger discount to future service and a small penalty to future dispatches. It still solves a linear program every week and returns only the first week\u2019s flows.",
+   "proposed": [
+    {
+     "hash": "39a79e7616df",
+     "reward": -2.107836226986223
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "1898bb9f37dc",
+     "reward": -2.1073502733969542
+    },
+    {
+     "hash": "3fa3e2c395b5",
+     "reward": -2.1072837114335243
+    },
+    {
+     "hash": "e6e3e4691346",
+     "reward": -2.1073502733969542
+    }
+   ],
+   "usage": {
+    "input_tokens": 12506,
+    "output_tokens": 3926,
+    "cached_tokens": 4838,
+    "cache_write_tokens": 0,
+    "cost": 0.0027781800000000003
+   }
+  },
+  {
+   "iter": 7,
+   "model": "gpt-6-luna",
+   "reasoning_effort": "low",
+   "reasoning": "The supplied policies plan all weeks of the lookahead using this week's route costs, capacities, and prohibitions, even though the agent can only execute this week's dispatch. The policy below still uses an LP to value current dispatches against forecast demand, but uses a short lookahead, discounts future demand, and returns only the first week's flows. It also models route capacities on every edge and chokepoint in a lane, and includes in-transit arrivals in the inventory balances.",
+   "proposed": [
+    {
+     "hash": "9659a4c4c266",
+     "reward": -2.107326869325205
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "e6e3e4691346",
+     "reward": -2.1073502733969542
+    },
+    {
+     "hash": "1898bb9f37dc",
+     "reward": -2.1073502733969542
+    },
+    {
+     "hash": "3fa3e2c395b5",
+     "reward": -2.1072837114335243
+    }
+   ],
+   "usage": {
+    "input_tokens": 12506,
+    "output_tokens": 3462,
+    "cached_tokens": 4838,
+    "cache_write_tokens": 0,
+    "cost": 0.0025461800000000003
+   }
+  },
+  {
+   "iter": 8,
+   "model": "gpt-6-luna",
+   "reasoning_effort": "low",
+   "reasoning": "The supplied policies optimize a short forecast horizon but can leave useful stock stranded at the end of that horizon: inventory has no terminal value, so the planner may fail to ship goods that will serve demand shortly after the lookahead ends. The policy below retains the time-expanded LP and its network, lane, capacity, and chokepoint constraints, while adding a small salvage value for inventory at demand sinks and a decaying value for inventory at other nodes based on reachable shortage penalties. It also incorporates waiting tanker cargo using the default release rather than introducing potentially unsafe overrides.",
+   "proposed": [
+    {
+     "hash": "519029644f25",
+     "reward": -2.1079945756201517
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "3fa3e2c395b5",
+     "reward": -2.1072837114335243
+    },
+    {
+     "hash": "1898bb9f37dc",
+     "reward": -2.1073502733969542
+    },
+    {
+     "hash": "0028fcee14db",
+     "reward": -2.107347404137677
+    }
+   ],
+   "usage": {
+    "input_tokens": 12239,
+    "output_tokens": 3971,
+    "cached_tokens": 4838,
+    "cache_write_tokens": 0,
+    "cost": 0.00277398
+   }
+  },
+  {
+   "iter": 9,
+   "model": "gpt-6-luna",
+   "reasoning_effort": "low",
+   "reasoning": "The supplied policies all use an LP, but their finite-horizon objective can overvalue shipments whose benefits occur beyond the planning window. This replacement keeps the LP and explicitly values end-of-horizon inventory, while using a short, adaptive horizon and discounting future demand service. It also handles unavailable observation fields and action masks defensively. The LP remains an approximation: it assumes this week's route capacities and costs persist over its planning horizon.",
+   "proposed": [
+    {
+     "hash": "72d5b108cad8",
+     "reward": -2.1073096868431613
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "e6e3e4691346",
+     "reward": -2.1073502733969542
+    },
+    {
+     "hash": "9659a4c4c266",
+     "reward": -2.107326869325205
+    },
+    {
+     "hash": "0028fcee14db",
+     "reward": -2.107347404137677
+    }
+   ],
+   "usage": {
+    "input_tokens": 12073,
+    "output_tokens": 3183,
+    "cached_tokens": 4838,
+    "cache_write_tokens": 0,
+    "cost": 0.00236338
+   }
+  }
+ ]
+}

@@ -1,0 +1,540 @@
+{
+ "meta": {
+  "task": "small",
+  "entropy": 2004,
+  "train_episodes": 16,
+  "holdout": "dev",
+  "quick": false,
+  "iters": 24,
+  "alpha_model": false,
+  "alpha": 0.25,
+  "sample_n": 3,
+  "sample_e": 1,
+  "sample_t": 1.0,
+  "lm_t": 1.0,
+  "top_p": 0.98,
+  "policy_dir": null,
+  "postfix": "A good baseline to start from: import numpy as np\n\nclass Agent:\n    def __init__(self, config=None):\n        static = config[\"static\"]  \n        action = config[\"spaces\"][\"action\"]\n        u0 = static[\"edges\"][\"u0\"] \n        self.capacity = np.array([u0[e] for e in static[\"action_slots\"][\"edge\"]], dtype=float)\n        self.override_qty = np.zeros(action[\"override_qty\"][\"shape\"])\n        self.release_mode = np.zeros(action[\"release_mode\"][\"shape\"], dtype=np.int64)  \n        self.rng = np.random.default_rng(config[\"policy_seed\"])\n\n    def act(self, observation):\n        flows = self.capacity * observation[\"action_mask\"]\n        return {\"flows\": flows, \"override_qty\": self.override_qty, \"release_mode\": self.release_mode}",
+  "alpha_reasoning": "low",
+  "beta_reasoning": "none"
+ },
+ "iterations": [
+  {
+   "iter": 0,
+   "reasoning": "No prior policies were provided, so I wrote two variants on the baseline. I could not test either one. Variant 1 improves the capacity-fill baseline in three ways. It uses this week's capacity graph_now.u instead of the nominal u0. It treats None and NaN capacities as zero. It sends nothing on lanes through a fully closed chokepoint, because a closure just queues cargo and alternative lanes exist. It also respects the action mask only when the mask was observed. Variant 2 adds stock awareness. For each (tail node, commodity) it caps total outgoing flow at on-hand stock plus available supply, scaling slots proportionally when requests exceed it. This stops over-dispatch of goods that are not there, which are probably clipped anyway. Nodes with no stock or supply entry, such as chokepoint queues, keep the full capacity request. If stock is unobserved, no cap is applied. Both variants read all shapes and indices from config and the observation, and never hard-code sizes.",
+   "proposed": [
+    {
+     "hash": "6558333cda5c",
+     "reward": 0.46752930300149365
+    },
+    {
+     "hash": "9ae6a8593c4b",
+     "reward": 0.5102145767973163
+    }
+   ],
+   "sampled": [],
+   "usage": {
+    "input_tokens": 4,
+    "output_tokens": 3745,
+    "cached_tokens": 0,
+    "cache_write_tokens": 7595,
+    "cost": 0.0564455
+   }
+  },
+  {
+   "iter": 1,
+   "reasoning": "The best policy so far ships full capacity on every open, allowed slot, capped by stock plus supply per (node, commodity). It over-ships onto final legs, which adds freight cost and probably holding cost. I keep that logic and add a demand-based cap on slots whose route ends at a demand sink. The cap for each sink is F times the mean forecast over weeks 0-3, plus half the carried backlog. When the forecast is unobserved the cap is skipped. I submit two variants, F=1.3 and F=2.0, to sweep how tight the cap should be.",
+   "proposed": [
+    {
+     "hash": "5e0d69a7d67a",
+     "reward": 0.5212262687540661
+    },
+    {
+     "hash": "96c4c6677f59",
+     "reward": 0.5139117936217759
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "9ae6a8593c4b",
+     "reward": 0.5102145767973163
+    },
+    {
+     "hash": "6558333cda5c",
+     "reward": 0.46752930300149365
+    }
+   ],
+   "usage": {
+    "input_tokens": 4,
+    "output_tokens": 5469,
+    "cached_tokens": 7581,
+    "cache_write_tokens": 1916,
+    "cost": 0.061004199999999995
+   }
+  },
+  {
+   "iter": 2,
+   "reasoning": "The best policy so far (0.521) sends full capacity on every allowed slot, zeroes lanes through closed chokepoints, caps each (node, commodity) at stock plus supply, and caps flow into each sink at F times the mean 4-week demand forecast plus half the backlog. F=1.3 beat F=2.0 (0.514) and no cap (0.510), so tighter caps seem to help. I propose three variants that sweep the cap parameters: F=1.15 with a 3-week horizon and a full-backlog term; F=1.0 with a 4-week horizon and a 0.5 backlog weight; and F=1.3 with the open fraction scaling lane flows and a 0.75 backlog weight. Flows to the sink are thereby limited to what demand needs, which should cut freight and tariff cost without raising shortage cost much.",
+   "proposed": [
+    {
+     "hash": "c32264bea24b",
+     "reward": 0.5235492395619772
+    },
+    {
+     "hash": "587c62ccacf6",
+     "reward": 0.5233577096897901
+    },
+    {
+     "hash": "56e8c8926237",
+     "reward": 0.5224255275406156
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "5e0d69a7d67a",
+     "reward": 0.5212262687540661
+    },
+    {
+     "hash": "9ae6a8593c4b",
+     "reward": 0.5102145767973163
+    },
+    {
+     "hash": "96c4c6677f59",
+     "reward": 0.5139117936217759
+    }
+   ],
+   "usage": {
+    "input_tokens": 4,
+    "output_tokens": 6646,
+    "cached_tokens": 7581,
+    "cache_write_tokens": 4795,
+    "cost": 0.07997169999999999
+   }
+  },
+  {
+   "iter": 3,
+   "reasoning": "The best policy (0.5235) ships at capacity on every allowed slot, zeroes lanes through closed chokepoints, limits each (node, commodity) group to stock plus available supply, and caps deliveries into demand sinks at F times the mean forecast plus a share of backlog. The other two runs scored 0.5212 and 0.5234 with different F, BL and H, so the score is flat near this region and the structure is sound. I cannot test here, so I propose three small sweeps of the best policy. (1) Scale lane flows by the open fraction of partially open chokepoints, since a partial closure clips the flow anyway and the excess is wasted. (2) A tighter delivery cap, F=1.05 with H=3, to cut holding and freight on overshipment. (3) A looser cap with more backlog recovery, F=1.2, BL=1.5, H=2, to reduce shortage penalties that may be under-served. All three keep the robust fallbacks for unobserved fields.",
+   "proposed": [
+    {
+     "hash": "67e2070f2f4a",
+     "reward": 0.5247220986764316
+    },
+    {
+     "hash": "7dad0500c286",
+     "reward": 0.5237171078703706
+    },
+    {
+     "hash": "8b785a958656",
+     "reward": 0.5228891649378693
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "c32264bea24b",
+     "reward": 0.5235492395619772
+    },
+    {
+     "hash": "5e0d69a7d67a",
+     "reward": 0.5212262687540661
+    },
+    {
+     "hash": "587c62ccacf6",
+     "reward": 0.5233577096897901
+    }
+   ],
+   "usage": {
+    "input_tokens": 4,
+    "output_tokens": 6854,
+    "cached_tokens": 7581,
+    "cache_write_tokens": 5471,
+    "cost": 0.0837417
+   }
+  },
+  {
+   "iter": 4,
+   "reasoning": "The best policy so far (0.5247) sends full capacity on every allowed slot, zeroes lanes through closed chokepoints, scales lane flow by the chokepoint open fraction, limits each source and node group to available stock plus supply, and caps flows into each sink at F times the mean near-term forecast plus a share of the backlog. Comparing the three given policies, scaling by the open fraction, a slightly larger F and a full backlog share each looked mildly helpful, though the differences are small. I keep that structure and sweep the three parameters that shape the sink cap: F (cap multiplier), BL (backlog share) and H (forecast horizon). The variants are F=1.1 with BL=1.0 and H=3, F=1.15 with BL=1.5 and H=2, and F=1.2 with BL=1.0 and H=3. The sweep tests whether a tighter cap saves freight cost without raising shortage cost, or a looser cap does the opposite.",
+   "proposed": [
+    {
+     "hash": "5826e596583f",
+     "reward": 0.5250040106634167
+    },
+    {
+     "hash": "bb5d20dcb47b",
+     "reward": 0.5246921315971708
+    },
+    {
+     "hash": "0bb2c434bc5f",
+     "reward": 0.5241059232492853
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "67e2070f2f4a",
+     "reward": 0.5247220986764316
+    },
+    {
+     "hash": "587c62ccacf6",
+     "reward": 0.5233577096897901
+    },
+    {
+     "hash": "5e0d69a7d67a",
+     "reward": 0.5212262687540661
+    }
+   ],
+   "usage": {
+    "input_tokens": 4,
+    "output_tokens": 6938,
+    "cached_tokens": 7581,
+    "cache_write_tokens": 5471,
+    "cost": 0.0845817
+   }
+  },
+  {
+   "iter": 5,
+   "reasoning": "All three existing policies ship every route at full capacity, clip it by upstream availability (stock plus supply), and cap sink-bound flows by forecast demand plus backlog. They score about 0.52, and the parameter sweep on F, BL, H and OPENSCALE moved the score very little. The cap ignores shipments already in transit, which can overshoot when lead times are several weeks. I did not run these variants, so they are untested proposals. The first two keep the same structure and add a pipeline-aware cap. For each sink and commodity, the cap becomes F x mean forecast x (lead time + 1 weeks) + BL x backlog, minus in-transit quantity and any stock at the sink. That is an inventory-position target, so flows are not clipped below the demand rate in steady state. Lead time comes from the current graph_now.tau summed along the lane. Variant A uses F=1.1 with open-fraction scaling. Variant B uses F=1.0 and no scaling, to test the other direction. Variant C keeps the baseline logic with looser caps (F=1.3, BL=2, H=2, open-fraction scaling on), to check whether the best policy was cutting flow too hard.",
+   "proposed": [
+    {
+     "hash": "a72ad933111b",
+     "reward": 0.5199155111082157
+    },
+    {
+     "hash": "fc29d0dd19c4",
+     "reward": 0.5185198080196037
+    },
+    {
+     "hash": "0387dbd9f61d",
+     "reward": 0.5224731915141023
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "7dad0500c286",
+     "reward": 0.5237171078703706
+    },
+    {
+     "hash": "bb5d20dcb47b",
+     "reward": 0.5246921315971708
+    },
+    {
+     "hash": "587c62ccacf6",
+     "reward": 0.5233577096897901
+    }
+   ],
+   "usage": {
+    "input_tokens": 4,
+    "output_tokens": 9216,
+    "cached_tokens": 7581,
+    "cache_write_tokens": 5535,
+    "cost": 0.1075217
+   }
+  },
+  {
+   "iter": 6,
+   "reasoning": "All three examples score about 0.52. They send full capacity, then clip flows by source stock and supply, closed chokepoints and prohibitions, and a demand-based cap at each sink. Throttling proportionally across the routes into a sink ignores freight cost and tariff. When the cap binds, I instead fill the cheapest routes first, ranked by freight plus tariff times customs value. I kept the simplest and best base (0.5229, no pipeline accounting) and swept the cap parameters F, BL and H. The three variants are a baseline-like cost-greedy one, a looser cap with more backlog coverage, and a tighter one-week horizon.",
+   "proposed": [
+    {
+     "hash": "c4649de0a95e",
+     "reward": 0.5264781485206539
+    },
+    {
+     "hash": "4a01bb0308b7",
+     "reward": 0.5228902893368009
+    },
+    {
+     "hash": "be4996befbc3",
+     "reward": 0.5280184618958803
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "a72ad933111b",
+     "reward": 0.5199155111082157
+    },
+    {
+     "hash": "fc29d0dd19c4",
+     "reward": 0.5185198080196037
+    },
+    {
+     "hash": "8b785a958656",
+     "reward": 0.5228891649378693
+    }
+   ],
+   "usage": {
+    "input_tokens": 4,
+    "output_tokens": 7851,
+    "cached_tokens": 7581,
+    "cache_write_tokens": 6705,
+    "cost": 0.0967967
+   }
+  },
+  {
+   "iter": 7,
+   "reasoning": "The best prior policy (0.5247) sends capacity, masks prohibited and closed lanes, scales by open fraction, limits shipments to available stock and supply, and caps deliveries at sinks using the demand forecast and backlog. Three variants test ways to improve it. A) Keep the cap but, when it binds, fill the cheapest route first (freight plus tariff times customs value) instead of scaling all duplicate routes proportionally. This should cut freight and tariff cost. B) Add pipeline and sink-stock accounting, with a higher safety factor F=1.3 because the earlier F=1.0 pipeline version under-shipped, plus cheapest-first filling. C) A plain parameter shift of the best policy (F=1.25, H=4, proportional scaling) to check whether more buffer helps.",
+   "proposed": [
+    {
+     "hash": "51b7f5b6e010",
+     "reward": 0.5276020439371569
+    },
+    {
+     "hash": "7696228342b8",
+     "reward": 0.5211176870984836
+    },
+    {
+     "hash": "521974cc9759",
+     "reward": 0.5232891252334418
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "fc29d0dd19c4",
+     "reward": 0.5185198080196037
+    },
+    {
+     "hash": "67e2070f2f4a",
+     "reward": 0.5247220986764316
+    },
+    {
+     "hash": "c32264bea24b",
+     "reward": 0.5235492395619772
+    }
+   ],
+   "usage": {
+    "input_tokens": 4,
+    "output_tokens": 9112,
+    "cached_tokens": 7581,
+    "cache_write_tokens": 6120,
+    "cost": 0.10794419999999999
+   }
+  },
+  {
+   "iter": 8,
+   "reasoning": "The best policy so far (0.5276) sends every route at full capacity. It scales flows by chokepoint open fraction, limits them to available stock and supply, caps deliveries to each sink at F times the forecast demand over H weeks plus BL times backlog, and fills that cap with the cheapest routes first. The remaining gains look like they come from tuning the demand cap. I keep that structure and propose three variants: a tighter cap (F=1.05, BL=0.75, H=3), a looser cap with a longer horizon (F=1.25, BL=1.5, H=4), and a middle setting with a shorter horizon (F=1.15, BL=1.0, H=2). The PIPE branch was off in the best policy, so I removed it. I also keep all the observed-mask checks and the try/except so the policies stay safe on other variants.",
+   "proposed": [
+    {
+     "hash": "efdad5cbcd02",
+     "reward": 0.5282953927157329
+    },
+    {
+     "hash": "bae695ae1668",
+     "reward": 0.525474311627366
+    },
+    {
+     "hash": "4e7e9f24bf8e",
+     "reward": 0.527596599099676
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "0387dbd9f61d",
+     "reward": 0.5224731915141023
+    },
+    {
+     "hash": "5826e596583f",
+     "reward": 0.5250040106634167
+    },
+    {
+     "hash": "51b7f5b6e010",
+     "reward": 0.5276020439371569
+    }
+   ],
+   "usage": {
+    "input_tokens": 4,
+    "output_tokens": 7314,
+    "cached_tokens": 7581,
+    "cache_write_tokens": 6320,
+    "cost": 0.0904642
+   }
+  },
+  {
+   "iter": 9,
+   "reasoning": "All three existing policies ship at full capacity and then limit flow using stock and supply, closure fractions and a demand-based cap at the sinks. They score about 0.525. The small differences between them suggest the remaining loss is over-shipping and uneven route choice, not under-shipping. I propose two variants.\n\nVariant A keeps the best settings so far (F=1.1, BL=1.0, H=3) and adds two things from the other runs. It scales lane flows by the open fraction of each chokepoint. When a sink's cap binds, it fills the cheapest routes first, ranked by freight plus tariff times customs value.\n\nVariant B adds pipeline awareness to variant A. At each sink it computes a base-stock cap equal to F times the forecast rate times (lead+1), plus backlog, minus shipments already in transit to that sink and any stock held there. This should avoid repeatedly overshipping goods that are still in flight on long lead-time routes. Cheapest-first allocation is kept. I could not test either variant here, so both are untested guesses.",
+   "proposed": [
+    {
+     "hash": "5a0e42b573d0",
+     "reward": 0.5283292032567918
+    },
+    {
+     "hash": "8ee4ed795f29",
+     "reward": 0.5239235322083696
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "5826e596583f",
+     "reward": 0.5250040106634167
+    },
+    {
+     "hash": "521974cc9759",
+     "reward": 0.5232891252334418
+    },
+    {
+     "hash": "c4649de0a95e",
+     "reward": 0.5264781485206539
+    }
+   ],
+   "usage": {
+    "input_tokens": 4,
+    "output_tokens": 6537,
+    "cached_tokens": 7581,
+    "cache_write_tokens": 5886,
+    "cost": 0.08160919999999999
+   }
+  },
+  {
+   "iter": 10,
+   "reasoning": "The best policy sends full capacity on allowed slots, zeroes closed lanes, scales by open fraction, limits each group to available stock and supply, and caps deliveries to each sink by forecast demand plus backlog, choosing the cheapest routes first. I propose three variants. (1) The same policy with a tighter forecast factor F=1.05. (2) An inventory-position cap at sinks: order-up-to F times the forecast over the lead time, plus backlog, minus sink stock and in-transit shipments on the sink-bound edges. This avoids oversending when pipelines are full and avoids undersending when they are empty. (3) The same inventory-position cap with F=1.0 and a floor of 0.3 times the mean forecast, to guard against over-throttling.",
+   "proposed": [
+    {
+     "hash": "941467d5ffd0",
+     "reward": 0.5282953927157329
+    },
+    {
+     "hash": "85308d82a365",
+     "reward": 0.5257184434540418
+    },
+    {
+     "hash": "54f26d2edc40",
+     "reward": 0.5254952770334876
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "5a0e42b573d0",
+     "reward": 0.5283292032567918
+    },
+    {
+     "hash": "be4996befbc3",
+     "reward": 0.5280184618958803
+    },
+    {
+     "hash": "c32264bea24b",
+     "reward": 0.5235492395619772
+    }
+   ],
+   "usage": {
+    "input_tokens": 4,
+    "output_tokens": 9185,
+    "cached_tokens": 7581,
+    "cache_write_tokens": 5970,
+    "cost": 0.1082992
+   }
+  },
+  {
+   "iter": 11,
+   "reasoning": "The best prior policy (about 0.528) sends full capacity, limits flow by available stock and supply, scales for chokepoint open fraction, and caps flow into each sink at the demand forecast plus backlog. All three prior policies score about the same, so parameter tuning looks saturated. I propose three variants. Variant A is a mild parameter variation of the best policy (F=1.0, H=2). Variant B adds in-transit accounting at the sinks: the cap on sink-bound shipments becomes forecast demand over the window to arrival (tau+1 weeks), minus the pipeline quantity already in flight to that sink, plus backlog and a small safety margin. This should avoid over-shipping when lead times are long and pipelines are full, which cuts freight and tariff cost, and it still replenishes backlog. Variant C is the same pipeline-aware logic with a larger safety margin (F=1.15) and a larger backlog weight as a hedge against under-supply.",
+   "proposed": [
+    {
+     "hash": "3db0414be427",
+     "reward": 0.5277145568157581
+    },
+    {
+     "hash": "a63bef27e9df",
+     "reward": 0.5260191762492731
+    },
+    {
+     "hash": "16bc9a16bad0",
+     "reward": 0.5261859656004211
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "be4996befbc3",
+     "reward": 0.5280184618958803
+    },
+    {
+     "hash": "941467d5ffd0",
+     "reward": 0.5282953927157329
+    },
+    {
+     "hash": "56e8c8926237",
+     "reward": 0.5224255275406156
+    }
+   ],
+   "usage": {
+    "input_tokens": 4,
+    "output_tokens": 9210,
+    "cached_tokens": 7581,
+    "cache_write_tokens": 5970,
+    "cost": 0.1085492
+   }
+  },
+  {
+   "iter": 12,
+   "reasoning": "The best policy so far (0.528) sends full capacity, scaled by chokepoint openness, limited by available stock and supply, with sink-bound flows capped by forecast demand plus backlog and cheapest routes filled first. Its performance is sensitive to the demand-cap parameters: F is the forecast multiplier, H the forecast averaging horizon, and BL the share of backlog included. Both F=1.1 and F=1.2 scored about the same, so the optimum is probably broad. Each proposed change keeps that structure and sweeps these parameters on a tighter, a longer-horizon and a looser setting. The code is otherwise unchanged from the best policy so it stays valid on all variants.",
+   "proposed": [
+    {
+     "hash": "941467d5ffd0",
+     "reward": 0.5282953927157329
+    },
+    {
+     "hash": "cdad4610916d",
+     "reward": 0.5283810320513681
+    },
+    {
+     "hash": "b8771b552eeb",
+     "reward": 0.5266386485935766
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "0bb2c434bc5f",
+     "reward": 0.5241059232492853
+    },
+    {
+     "hash": "16bc9a16bad0",
+     "reward": 0.5261859656004211
+    },
+    {
+     "hash": "5a0e42b573d0",
+     "reward": 0.5283292032567918
+    }
+   ],
+   "usage": {
+    "input_tokens": 4,
+    "output_tokens": 7428,
+    "cached_tokens": 7581,
+    "cache_write_tokens": 6334,
+    "cost": 0.0916392
+   }
+  },
+  {
+   "iter": 13,
+   "reasoning": "The best prior policies send full capacity on every allowed slot. They scale it down for closed or partially open chokepoints, for stock and supply limits at the source, and for a forecast-plus-backlog cap at demand sinks. All three score about 0.52, and the differences come from F, H, BL and OPENSCALE. F is the forecast multiplier, H the forecast horizon in weeks, BL the share of backlog added to the cap, and OPENSCALE scales flow by a chokepoint's open fraction. I keep the 0.5233 structure and sweep these parameters in three variants. The first is tighter, with F=1.15, H=5 and BL=0.75. The second is looser, with F=1.4, H=3 and BL=1.0, which guards against under-supply and shortage penalties. The third uses a long horizon with a smaller backlog share, with F=1.25, H=6 and BL=0.5.",
+   "proposed": [
+    {
+     "hash": "8c83e369d896",
+     "reward": 0.524737971751824
+    },
+    {
+     "hash": "618902d9cf96",
+     "reward": 0.5207531239943015
+    },
+    {
+     "hash": "3fa40a808db5",
+     "reward": 0.5232766129371562
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "56e8c8926237",
+     "reward": 0.5224255275406156
+    },
+    {
+     "hash": "fc29d0dd19c4",
+     "reward": 0.5185198080196037
+    },
+    {
+     "hash": "521974cc9759",
+     "reward": 0.5232891252334418
+    }
+   ],
+   "usage": {
+    "input_tokens": 4,
+    "output_tokens": 6984,
+    "cached_tokens": 7581,
+    "cache_write_tokens": 6236,
+    "cost": 0.0869542
+   }
+  }
+ ]
+}

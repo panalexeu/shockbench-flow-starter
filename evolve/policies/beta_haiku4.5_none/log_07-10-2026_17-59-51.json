@@ -1,0 +1,1230 @@
+{
+ "meta": {
+  "task": "small",
+  "entropy": 2004,
+  "train_episodes": 16,
+  "holdout": "dev",
+  "quick": false,
+  "iters": 24,
+  "alpha_model": false,
+  "alpha": 0.25,
+  "sample_n": 4,
+  "sample_e": 2,
+  "sample_t": 1.0,
+  "lm_t": 1.0,
+  "top_p": 0.98,
+  "policy_dir": null,
+  "postfix": "A good baseline to start from: import numpy as np\n\nclass Agent:\n    def __init__(self, config=None):\n        static = config[\"static\"]  \n        action = config[\"spaces\"][\"action\"]\n        u0 = static[\"edges\"][\"u0\"] \n        self.capacity = np.array([u0[e] for e in static[\"action_slots\"][\"edge\"]], dtype=float)\n        self.override_qty = np.zeros(action[\"override_qty\"][\"shape\"])\n        self.release_mode = np.zeros(action[\"release_mode\"][\"shape\"], dtype=np.int64)  \n        self.rng = np.random.default_rng(config[\"policy_seed\"])\n\n    def act(self, observation):\n        flows = self.capacity * observation[\"action_mask\"]\n        return {\"flows\": flows, \"override_qty\": self.override_qty, \"release_mode\": self.release_mode}",
+  "alpha_reasoning": "low",
+  "beta_reasoning": "none"
+ },
+ "iterations": [
+  {
+   "iter": 0,
+   "reasoning": "I'm starting with an empty set of policies, so I need to develop baseline and improved strategies from scratch for the ShockBench-Flow supply chain control task.\n\nKey observations about the environment:\n1. The task involves weekly decisions on flow quantities across a supply network with 8 commodities, 115 edges, 38 nodes, and up to 52 weeks\n2. Disruptions (closures, sanctions, tariffs) are known but vary; the policy must adapt week-by-week\n3. The score is RSS (0 = naive, 1 = clairvoyant); negative scores are possible\n4. Critical information available: demand forecasts (8 weeks ahead), stock levels, pipeline inventory, backlog, warning signals, and announced future disruptions\n5. Action consists of: flows (edge dispatch), override quantities (tanker cargo release), and release modes (default/override/hold)\n\nA good strategy should:\n- Use demand forecasts to anticipate future needs and avoid shortages\n- Manage stock levels proactively to buffer against disruptions\n- React to announced disruptions (sanctions, closures) by rerouting or building inventory\n- Balance freight costs against shortage penalties\n- Use override controls at chokepoints strategically to manage tanker capacity\n- Prioritize high-value or bottlenecked commodities\n\nI'll propose three policies:\n1. A simple baseline that just sends full capacity where allowed (similar to the provided hint but respecting actual constraints)\n2. A forecast-aware policy that builds stock based on future demand signals\n3. An advanced policy that considers costs, shortage penalties, and disruption signals together",
+   "proposed": [
+    {
+     "hash": "56a1db6f904b",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "e0b09b7ffacb",
+     "reward": -999.0
+    },
+    {
+     "hash": "df28c56a9d6f",
+     "reward": 0.28523454873877835
+    }
+   ],
+   "sampled": [],
+   "usage": {
+    "input_tokens": 3,
+    "output_tokens": 3028,
+    "cached_tokens": 0,
+    "cache_write_tokens": 5975,
+    "cost": 0.02261175
+   }
+  },
+  {
+   "iter": 1,
+   "reasoning": "The best performing policy scores 0.47, which is just below the naive rule (score 0). The second policy scores 0.28, showing that more sophisticated logic can help. The third policy crashed due to trying to access 'supply_slots' from static, which doesn't exist as a top-level key\u2014it's in config['layout']. \n\nKey observations:\n1. The baseline (0.47) simply sends full capacity on allowed slots, which beats most sophisticated attempts. This suggests that aggressive sending is generally good, but needs refinement.\n2. The second policy (0.28) tried to be clever about threat detection and criticality but underperformed\u2014complexity without proper grounding hurts.\n3. The crash reveals I must use config['layout'] for table lookups, not config['static']['supply_slots'].\n4. Both working policies ignore override mechanics entirely (tanker release modes at chokepoints).\n\nStrategy for improvement:\n- Start with the baseline's simplicity but add strategic refinements\n- Focus on: (1) demand forecast alignment, (2) stock awareness to avoid shortages, (3) chokepoint capacity constraints via graph_now, (4) maybe selective override usage\n- Avoid over-engineering; the baseline's strength suggests capacity utilization is key\n- Use only config['layout'] for table lookups\n- Respect observation masks and the action_mask carefully\n- Test multiple variants: one conservative, one aggressive on demand, one with override logic",
+   "proposed": [
+    {
+     "hash": "e214a3dc64c4",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "9b7046fc2bf9",
+     "reward": -0.18675059560346638
+    },
+    {
+     "hash": "f41712b22299",
+     "reward": -0.23657867626939227
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "56a1db6f904b",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "df28c56a9d6f",
+     "reward": 0.28523454873877835
+    },
+    {
+     "hash": "e0b09b7ffacb",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 3,
+    "output_tokens": 2280,
+    "cached_tokens": 5962,
+    "cache_write_tokens": 2421,
+    "cost": 0.015025450000000001
+   }
+  },
+  {
+   "iter": 2,
+   "reasoning": "Looking at the provided policies, I see several patterns:\n\n1. **Current best: 0.4699** (baseline sending full capacity on allowed slots). This simple approach is hard to beat.\n2. **Refined baseline: 0.4699** (with demand scaling) \u2014 performs identically, suggesting demand scaling doesn't help or hurts equally.\n3. **Advanced policy: 0.2852** \u2014 more complex heuristics with threat detection and criticality scoring underperform significantly.\n4. **Chokepoint-aware: -0.237** \u2014 using release_mode to hold cargo actually hurts performance.\n5. **Forecast-aware: -999** \u2014 crashes trying to access `supply_slots` from static (which doesn't exist as a top-level key).\n\n**Key insights:**\n- Simple full-capacity dispatch is the best baseline so far. Complexity doesn't help.\n- The environment penalizes holding inventory or being conservative (negative scores on constrained dispatch).\n- Release modes (hold/override) appear to be harmful when used naively.\n- The clairvoyant policy (score 1) knows disruptions in advance; we only see noisy warnings and announcements.\n\n**New approach:** \nSince the baseline (send full capacity where allowed) achieves 0.4699 consistently, I should:\n1. Keep the core simplicity but add **selective demand-driven fine-tuning** that won't hurt if signals are weak.\n2. Use **pipeline visibility** (shipments in transit) to avoid over-sending when goods are already flowing.\n3. Respect **stock levels** at destinations to avoid redundant shipments.\n4. Implement **lookahead cost sensitivity** using last week's cost components to avoid high-cost routes when alternatives exist.\n5. Use **graph_now observations** (tariffs, war_risk) to slightly reduce flow on expensive or risky routes without dropping to zero.\n\nI'll propose 3 variants:\n- **Variant A**: Pipeline-aware (reduce flow if goods are already in flight to destination)\n- **Variant B**: Cost-sensitive (avoid high-tariff/war-risk routes slightly)\n- **Variant C**: Stock-aware (reduce flow if destination has excess stock)\n\nAll maintain the full-capacity baseline as fallback to preserve the 0.4699 score if the refinements are ineffective.",
+   "proposed": [
+    {
+     "hash": "541be8ca65b3",
+     "reward": 0.23869300481681008
+    },
+    {
+     "hash": "f7858336520d",
+     "reward": 0.3173898248481889
+    },
+    {
+     "hash": "3982061b1386",
+     "reward": -999.0
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "e214a3dc64c4",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "df28c56a9d6f",
+     "reward": 0.28523454873877835
+    },
+    {
+     "hash": "56a1db6f904b",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "f41712b22299",
+     "reward": -0.23657867626939227
+    },
+    {
+     "hash": "e0b09b7ffacb",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 3,
+    "output_tokens": 2982,
+    "cached_tokens": 5962,
+    "cache_write_tokens": 3522,
+    "cost": 0.0199117
+   }
+  },
+  {
+   "iter": 3,
+   "reasoning": "Looking at the provided policies, I observe several patterns:\n\n1. **Baseline approaches** (scores ~0.47): Simply send full capacity where allowed. This achieves moderate performance.\n\n2. **Demand-aware approaches** (scores 0.24-0.47): Attempting to scale flows based on demand forecasts or backlog improve results, but only slightly.\n\n3. **Failed approaches** (score -999): Policies that tried to access `stock_slots` and `supply_slots` directly from `static` crashed. The layout is in `config[\"layout\"]`, not `static`.\n\n4. **Negative performer** (score -0.19): Over-aggressive stock balancing (throttling to 0.5x when inventory is high) performed worse than baseline.\n\nKey insights for improvement:\n- The baseline strategy of sending full capacity where allowed achieves 0.47, which is solid.\n- Simple demand forecasting helps a little but needs better implementation.\n- The critical errors stem from incorrect data structure access.\n- We need to be more sophisticated about:\n  1. **Backlog-driven urgency**: High backlog should trigger aggressive sending.\n  2. **Capacity utilization across time**: Looking ahead several weeks, not just current week.\n  3. **Pipeline congestion**: The pipeline observation shows goods in flight; we should avoid oversending on congested routes.\n  4. **Warning signals and disruptions**: Early warnings and chokepoint closures should guide flow decisions.\n  5. **Override controls at chokepoints**: The tanker release modes and override quantities are underutilized.\n\nI'll propose three strategies:\n1. **Improved demand-driven allocation**: Scale flows based on cumulative forecast demand over multiple weeks, with proper backlog penalty.\n2. **Pipeline-aware congestion control**: More sophisticated pipeline load tracking to avoid bottlenecks.\n3. **Disruption-responsive**: React to warning scores and closure announcements by proactively rerouting or building stock.",
+   "proposed": [
+    {
+     "hash": "ed40acaf2c8d",
+     "reward": -999.0
+    },
+    {
+     "hash": "f2ae0b98ef09",
+     "reward": -0.014771322157051193
+    },
+    {
+     "hash": "170aa92f44fc",
+     "reward": -999.0
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "56a1db6f904b",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "e214a3dc64c4",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "9b7046fc2bf9",
+     "reward": -0.18675059560346638
+    },
+    {
+     "hash": "541be8ca65b3",
+     "reward": 0.23869300481681008
+    },
+    {
+     "hash": "3982061b1386",
+     "reward": -999.0
+    },
+    {
+     "hash": "e0b09b7ffacb",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 3,
+    "output_tokens": 3750,
+    "cached_tokens": 5962,
+    "cache_write_tokens": 3694,
+    "cost": 0.0239667
+   }
+  },
+  {
+   "iter": 4,
+   "reasoning": "Looking at the provided policies, I observe:\n\n1. **Best performer (0.47)**: Uses demand-aware scaling with capacity masking and backlog detection.\n2. **Second best (0.32)**: Applies cost-based throttling to expensive/tariffed routes.\n3. **Third (0.29)**: Attempts sophisticated threat-based allocation but may over-allocate.\n4. **Weak (\u22120.01)**: Pipeline congestion model throttles too aggressively.\n5. **Failed policies**: One has array ambiguity bug (using `if array:` instead of `if array.any()`), others have missing config keys.\n\nKey insights:\n- The baseline achieves 0.47 with simple demand-aware scaling\u2014moderation works better than aggression.\n- Capacity masking (respecting `action_mask`) is critical.\n- Cost and tariff reduction helps but was secondary to demand.\n- Pipeline throttling in policy #4 was too aggressive (negative score).\n- The demand-forecast policy (#5) had a logic error using bare array in conditional.\n\n**Strategic improvements I'll pursue**:\n1. **Hybrid demand-cost model**: Combine the best of policy #1 (demand scaling) with policy #2 (cost sensitivity), but more carefully calibrated.\n2. **Inventory-aware allocation**: Reduce sends to nodes with high stock (fix the broken #7 by reading `stock_slots` correctly from layout).\n3. **Lead-time buffering**: Account for `graph_now.tau` to pre-position inventory before long delays.\n4. **Safer pipeline loading**: A gentler throttle than policy #4, with focus on avoiding cascading congestion.\n5. **Backlog priority**: Weight allocation by backlog presence and shortage rate from `last_week.*`.\n\nI'll create three candidate policies:\n- **Policy A**: Conservative hybrid (demand + light cost + inventory awareness).\n- **Policy B**: Moderate lead-time lookahead (pre-ship on long routes before disruptions).\n- **Policy C**: Gentle pipeline load balancing without over-throttling.",
+   "proposed": [
+    {
+     "hash": "2ae94ae244ea",
+     "reward": 0.006889424796628428
+    },
+    {
+     "hash": "8394fadfd9e4",
+     "reward": -0.0434260988810418
+    },
+    {
+     "hash": "735b06cdaac8",
+     "reward": 0.06815598438781861
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "e214a3dc64c4",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "f7858336520d",
+     "reward": 0.3173898248481889
+    },
+    {
+     "hash": "df28c56a9d6f",
+     "reward": 0.28523454873877835
+    },
+    {
+     "hash": "f2ae0b98ef09",
+     "reward": -0.014771322157051193
+    },
+    {
+     "hash": "ed40acaf2c8d",
+     "reward": -999.0
+    },
+    {
+     "hash": "3982061b1386",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 3,
+    "output_tokens": 5191,
+    "cached_tokens": 5962,
+    "cache_write_tokens": 5213,
+    "cost": 0.033070449999999994
+   }
+  },
+  {
+   "iter": 5,
+   "reasoning": "Looking at the provided policies, I see several patterns:\n\n1. **Best performers (0.47)**: The baseline (full capacity on allowed slots) and refined baseline (full capacity with light demand adjustment) both score 0.47. This suggests that simply sending full capacity is quite effective.\n\n2. **Medium performer (0.285)**: The advanced policy with threat factors and criticality boosting scores lower, suggesting that complex heuristics may overfit or misalign with actual costs.\n\n3. **Failures**: Two policies crashed due to accessing wrong keys (`stock_slots` vs `stock`) and ambiguous array truth values, highlighting common pitfalls.\n\n4. **Key insight**: The simplest policies that send full capacity on permitted routes perform best. This suggests:\n   - The nominal plan (clairvoyant) likely also uses high capacity\n   - Disruptions are already reflected in `action_mask` and `graph_now.u`\n   - Over-thinking marginal adjustments (stock levels, threat factors) introduces errors\n\n5. **Opportunity for improvement**:\n   - The current best (0.47) is still far from clairvoyant (1.0), leaving substantial room\n   - The advanced policy (0.285) shows that disruption signals (`warning.score`, `pending_prohibitions`) could be valuable if used correctly\n   - The stock-aware policy (-0.18) performed worse, but perhaps the logic was too conservative\n   - Multi-week lookahead in demand forecasting is sensible but the urgency-based allocation may not weight commodities optimally\n\n**New strategy**:\n1. **Policy 1**: Aggressive baseline - send full capacity everywhere allowed, and probe capacity slightly beyond nominal when there's backlog, respecting the actual `graph_now.u` constraints.\n2. **Policy 2**: Disruption-aware with lead time compensation - detect upcoming prohibitions and proactively send more on threatened routes *this week* to build inventory before closure, but only on high-demand commodities.\n3. **Policy 3**: Demand-driven with multi-commodity balancing - use demand forecasts to prioritize shipments by urgency, but keep the scaling conservative to avoid overallocation errors.\n4. **Policy 4**: Hybrid - combine full capacity with a small boost on routes feeding high-backlog sinks, smoothing over the week dimension using lead times.",
+   "proposed": [
+    {
+     "hash": "21ba44cd2574",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "2d8ad3e42afa",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "af91cbed7a9f",
+     "reward": 0.37986577423938317
+    },
+    {
+     "hash": "e5a2be516b6b",
+     "reward": 0.4699062375097181
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "df28c56a9d6f",
+     "reward": 0.28523454873877835
+    },
+    {
+     "hash": "56a1db6f904b",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "9b7046fc2bf9",
+     "reward": -0.18675059560346638
+    },
+    {
+     "hash": "e214a3dc64c4",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "3982061b1386",
+     "reward": -999.0
+    },
+    {
+     "hash": "ed40acaf2c8d",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 3,
+    "output_tokens": 3238,
+    "cached_tokens": 5962,
+    "cache_write_tokens": 4494,
+    "cost": 0.0224067
+   }
+  },
+  {
+   "iter": 6,
+   "reasoning": "Analyzing the provided policies:\n\n1. **Policy 1 (0.380)**: Demand-driven with backlog priority. Uses demand forecast and backlog to compute urgency per commodity, then allocates 0.9-1.1x capacity based on normalized urgency. Issue: The urgency normalization may over-concentrate allocation on few commodities.\n\n2. **Policy 2 (-0.187)**: Stock-aware with global throttling. Reduces flow to 0.5x when stock is high, ramps to 1.2x when backlog is high. Issue: Overly simplistic global throttle ignores commodity-specific needs and action_mask properly.\n\n3. **Policy 3 (0.239)**: Pipeline-aware baseline. Reduces flow by 20% on routes with heavy pipeline load. Issue: Conservative 0.8x reduction may leave capacity on the table.\n\n4. **Policy 4 (0.470)**: Aggressive baseline. Sends full capacity on all allowed slots. Best score so far. Simple and effective but doesn't adapt to disruptions or demand signals.\n\n5. **Policy 5 & 6 (-999)**: Both fail with array truthiness error (using `if array` instead of `.any()` or `.all()`). The disruption-responsive policy has good ideas (warnings, closures) but poor implementation.\n\n**Key insights:**\n- The aggressive baseline (0.47) works well\u2014sending full capacity respects action_mask and doesn't over-complicate.\n- Disruption awareness (warnings, closures) is valuable but must be implemented carefully.\n- Multi-commodity demand forecasting adds value when done right.\n- Global throttling hurts more than it helps.\n- Pipeline awareness may be too conservative.\n\n**Strategy for improvement:**\n1. Build on aggressive baseline (which works at 0.47) with careful enhancements.\n2. Add light demand-forecast weighting to prioritize high-demand commodities during disruptions.\n3. Use warning scores and closure data to detect high-risk scenarios, then preemptively boost flow through safe routes.\n4. Implement proper array handling to avoid truthiness errors.\n5. Keep it simple: avoid complex state tracking or overfitting to specific observations.\n\n**Proposed changes:**\n- **Policy A**: Enhanced aggressive baseline with demand-aware priority on allowed slots.\n- **Policy B**: Disruption-aware variant that boosts flow on safe routes when warnings are high, without global throttling.\n- **Policy C**: Conservative lookahead variant that smooths allocation across multi-week demand forecast with backlog penalty.",
+   "proposed": [
+    {
+     "hash": "655100148b79",
+     "reward": 0.31456237528312153
+    },
+    {
+     "hash": "dc96a7cae152",
+     "reward": 0.4565345237935042
+    },
+    {
+     "hash": "17974d3b1b54",
+     "reward": 0.23154829213589143
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "af91cbed7a9f",
+     "reward": 0.37986577423938317
+    },
+    {
+     "hash": "9b7046fc2bf9",
+     "reward": -0.18675059560346638
+    },
+    {
+     "hash": "541be8ca65b3",
+     "reward": 0.23869300481681008
+    },
+    {
+     "hash": "21ba44cd2574",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "ed40acaf2c8d",
+     "reward": -999.0
+    },
+    {
+     "hash": "170aa92f44fc",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 3,
+    "output_tokens": 3660,
+    "cached_tokens": 5962,
+    "cache_write_tokens": 4502,
+    "cost": 0.024526700000000002
+   }
+  },
+  {
+   "iter": 7,
+   "reasoning": "Analyzing the provided policies, I see several patterns:\n\n1. **Baseline approaches (0.47 score)**: Simple full-capacity allocation on allowed slots performs decently.\n\n2. **Risk-aware attempts (0.46, 0.29 scores)**: These try to boost flows based on warnings/disruptions and demand urgency, but show mixed results. The logic for detecting threats and modulating allocation needs refinement.\n\n3. **Failed policies**: Two crashed with errors:\n   - `.any()` issue: ambiguous truth value on array\n   - KeyError on 'stock_slots': incorrect layout access (it's a list, not dict with keys)\n\n**Key insights for improvement**:\n\n- The baseline (0.47) already performs well by sending full capacity. Beating it requires **smarter selective routing** rather than boosting all flows.\n- Current policies don't properly leverage:\n  - **Lead times (tau)**: Long-lead routes should be filled earlier to buffer disruptions\n  - **Freight costs (c)**: Expensive routes should carry only high-value/urgent commodities\n  - **Pipeline/WIP visibility**: Account for in-flight inventory and future arrivals\n  - **Demand patterns**: Multi-week forecasts should guide front-loading before disruptions\n  - **Tariff impacts**: High-tariff routes need cost justification\n\n- **Strategy**: Instead of boosting flows uniformly, implement **cost-aware routing** that:\n  1. Prioritizes high-urgency, high-value commodities on available routes\n  2. Front-loads shipments on long-lead or at-risk routes before disruptions materialize\n  3. Uses cheaper routes for low-urgency fill\n  4. Respects action_mask strictly to avoid dropped entries\n\n- **Execution quality**:\n  - Avoid array boolean ambiguity (use `.any()` or `.all()` explicitly)\n  - Access layout tables correctly (they are lists, index by static tables)\n  - Normalize flows to respect total capacity constraints\n  - Handle NaN/inf in costs and lead times\n\n**Three new policies to test**:\n\n1. **Cost-aware routing**: Route high-value/urgent commodities preferentially, weight by freight cost.\n2. **Lead-time front-loading**: Identify long-lead and threatened routes; send more now to pre-buffer.\n3. **Hybrid urgency-cost**: Blend demand urgency with route economics, reducing low-priority flows.",
+   "proposed": [
+    {
+     "hash": "eb43f2210081",
+     "reward": -999.0
+    },
+    {
+     "hash": "a00e3ffbc8bc",
+     "reward": 0.3922465973614549
+    },
+    {
+     "hash": "5717f6c7f0fa",
+     "reward": -999.0
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "56a1db6f904b",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "21ba44cd2574",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "dc96a7cae152",
+     "reward": 0.4565345237935042
+    },
+    {
+     "hash": "df28c56a9d6f",
+     "reward": 0.28523454873877835
+    },
+    {
+     "hash": "170aa92f44fc",
+     "reward": -999.0
+    },
+    {
+     "hash": "3982061b1386",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 3,
+    "output_tokens": 4867,
+    "cached_tokens": 5962,
+    "cache_write_tokens": 4722,
+    "cost": 0.0308367
+   }
+  },
+  {
+   "iter": 8,
+   "reasoning": "Looking at the provided policies, the best performer is the second policy (score 0.470) which uses a hybrid approach: start with full capacity, apply the action mask, and add mild boosts for high-backlog commodities. This outperforms more complex policies that try to model disruptions, lead times, and cost factors.\n\nThe key insights are:\n1. Full capacity baseline (0.8-1.0 utilization) tends to work better than conservative allocation\n2. Simple backlog-driven boosts are effective and stable\n3. Overcomplicating with disruption signals, lead-time calculations, and cost modeling can hurt performance\n4. The action_mask already encodes prohibitions, so we don't need to add extra logic\n5. Avoiding division by zero and array ambiguity issues is critical\n\nThe failing policies show common pitfalls:\n- Policy 5 failed trying to access `.edges.c` (should be `.edges.c0`)\n- Policy 6 failed on array truth value ambiguity (likely using `if` on arrays)\n\nI'll propose three improvements to the best baseline:\n1. A refined backlog-driven policy with better normalization\n2. A demand-forecast variant that uses multi-week lookahead more carefully\n3. A hybrid that combines backlog pressure with lead-time considerations, but more conservatively",
+   "proposed": [
+    {
+     "hash": "50b2bb5edc96",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "7bedb12596aa",
+     "reward": 0.32414970511382535
+    },
+    {
+     "hash": "71d2100c00ae",
+     "reward": 0.4699062375097181
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "a00e3ffbc8bc",
+     "reward": 0.3922465973614549
+    },
+    {
+     "hash": "e5a2be516b6b",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "df28c56a9d6f",
+     "reward": 0.28523454873877835
+    },
+    {
+     "hash": "f7858336520d",
+     "reward": 0.3173898248481889
+    },
+    {
+     "hash": "eb43f2210081",
+     "reward": -999.0
+    },
+    {
+     "hash": "ed40acaf2c8d",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 3,
+    "output_tokens": 3100,
+    "cached_tokens": 5962,
+    "cache_write_tokens": 5909,
+    "cost": 0.02348545
+   }
+  },
+  {
+   "iter": 9,
+   "reasoning": "Looking at the provided policies, all three non-error baseline variants score 0.47, while one variant scores 0.32. The error cases reveal critical mistakes: (1) accessing static fields that don't exist like 'stock_slots' as a direct key, and (2) accessing edge properties like 'c' that should come from observation, not static. \n\nKey insights:\n1. The current baselines (sending full capacity on allowed slots) score 0.47 - this is reasonable but leaves room for improvement\n2. Most attempts to do clever adjustments either fail or score worse\n3. The observation provides rich signal: stock levels, pipelines, demand forecasts, backlog, costs, tariffs, war risk, and early warnings\n4. To beat 0.47, I should: (a) respond to demand-supply imbalances more intelligently, (b) account for pipeline delays and WIP, (c) use demand forecasts to anticipate needs, (d) respect chokepoint constraints and override opportunities, (e) avoid expensive/risky routes when alternatives exist\n\nStrategy improvements:\n1. **Demand-aware allocation**: Scale flow to each sink's urgency (backlog + near-term forecast)\n2. **Pipeline-aware**: Don't oversend when pipeline already carries inventory to destinations\n3. **Cost-aware**: Avoid high tariff/freight routes unless demand justifies it\n4. **Chokepoint override**: Use release_mode strategically for tanker commodities at constrained chokepoints\n5. **Risk mitigation**: Reduce flow through high war-risk chokepoints\n\nI'll propose three policies with increasing sophistication:\n- Policy 1: Demand-weighted allocation (simple, should be 0.48-0.50)\n- Policy 2: Add pipeline-aware dampening (should be 0.50-0.52)\n- Policy 3: Full integration with overrides and chokepoint management (should be 0.52-0.55)",
+   "proposed": [
+    {
+     "hash": "add48f42d409",
+     "reward": -999.0
+    },
+    {
+     "hash": "0227ef12b7da",
+     "reward": -999.0
+    },
+    {
+     "hash": "dcb1b2e6d1e3",
+     "reward": -999.0
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "e214a3dc64c4",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "21ba44cd2574",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "56a1db6f904b",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "f7858336520d",
+     "reward": 0.3173898248481889
+    },
+    {
+     "hash": "3982061b1386",
+     "reward": -999.0
+    },
+    {
+     "hash": "eb43f2210081",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 3,
+    "output_tokens": 5691,
+    "cached_tokens": 5962,
+    "cache_write_tokens": 3576,
+    "cost": 0.0335242
+   }
+  },
+  {
+   "iter": 10,
+   "reasoning": "Analyzing the provided policies:\n\n1. **Score 0.47 (aggressive baseline)**: Sends full nominal capacity on all allowed slots. Simple but effective.\n\n2. **Score 0.47 (hybrid backlog-driven)**: Attempts backlog-aware boosting with mild 5% increases on high-backlog commodities. Same score suggests marginal benefit from this approach.\n\n3. **Score 0.47 (conservative lead-time + backlog)**: Uses conditional lead-time boosting when total backlog exceeds threshold. No improvement despite complexity.\n\n4. **Score 0.32 (baseline+ with tariff/war risk)**: Reduces flows on expensive/risky routes. Lower score indicates that cost reduction hurts overall performance\u2014likely because it under-serves demand.\n\n5. **Score -999 (cost-aware routing)**: References `self.edges[\"c\"]` which doesn't exist; should use observation data instead.\n\n6. **Score -999 (integrated strategy)**: Array ambiguity error when checking `if graph_c_obs.any()` in a non-obvious context; also uses list.index() on arrays which fails.\n\nKey insights:\n- The 0.47 baseline policies succeed by sending full capacity on allowed slots. Reducing flows (policies #4) hurts performance.\n- Attempts to boost specific routes (backlog, lead-time) don't improve scores, suggesting the baseline full-capacity strategy is already near-optimal for the nominal/observed scenarios.\n- The failing policies have implementation bugs and misuse the observation interface.\n- Chokepoint overrides and release modes haven't been properly tested yet; the winning policies ignore them entirely.\n\nNew strategy:\n1. **Refined full-capacity policy**: Keep the winning formula (full capacity \u00d7 action_mask) as the foundation.\n2. **Smart override logic for tankers**: Implement proper chokepoint override release for high-urgency scenarios and constrained throughput.\n3. **Dynamic demand-aware allocation**: Allocate based on forward demand visibility and pipeline lag, but avoid penalizing high-cost routes\u2014instead, prioritize routes that balance cost and urgency.\n4. **Cleaner pipeline accounting**: Track committed pipeline inventory properly to avoid double-sending.\n5. **Fix implementation bugs**: Use observation arrays correctly, avoid list.index() on static data.",
+   "proposed": [
+    {
+     "hash": "58711b689d6a",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "832cff64d38a",
+     "reward": -0.14087839642781322
+    },
+    {
+     "hash": "5fa0f64cdefe",
+     "reward": 0.38694824991214144
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "21ba44cd2574",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "e5a2be516b6b",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "71d2100c00ae",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "f7858336520d",
+     "reward": 0.3173898248481889
+    },
+    {
+     "hash": "eb43f2210081",
+     "reward": -999.0
+    },
+    {
+     "hash": "dcb1b2e6d1e3",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 3,
+    "output_tokens": 4335,
+    "cached_tokens": 5962,
+    "cache_write_tokens": 5740,
+    "cost": 0.029449200000000002
+   }
+  },
+  {
+   "iter": 11,
+   "reasoning": "Analyzing the provided policies, the best score is 0.47 (two policies tied). The main patterns I observe:\n\n1. **Top performers (0.47)**: Use full capacity as baseline, then apply commodity-level boosts based on backlog pressure. This is simple and effective.\n\n2. **Mid performers (0.39, 0.29)**: Attempt to incorporate lead-time, disruption signals, and demand forecasting, but the added complexity doesn't improve score\u2014likely because they under-allocate (factors < 1.0) when they should maximize capacity usage.\n\n3. **Failing policies (score -999)**: Both fail on the `.any()` call on multi-dimensional arrays without proper axis specification. One also incorrectly tries to index `closure_end` as if it's a list of indices.\n\n**Key insights**:\n- Full capacity utilization (capped by masks) is a strong baseline.\n- Commodity-level backlog pressure as a multiplicative boost (1.0 + \u03b1 \u00d7 pressure) works well.\n- Disruption/warning signals, while present, don't seem to improve the score when used to *reduce* flows\u2014the environment may penalize undercapacity more than overstock.\n- Demand forecasting and cost metrics alone don't beat the simple backlog heuristic.\n\n**Strategy for improvement**:\n1. **Refine backlog-driven allocation**: Test different boost magnitudes (0.10 vs 0.15 vs 0.20) and include stock depletion warnings.\n2. **Add simple pipeline depletion signal**: If pipeline (in-transit stock) is low and demand is high, boost further.\n3. **Tariff-aware allocation**: Slightly penalize very high-tariff routes to reduce cost without sacrificing coverage.\n4. **Horizon-aware urgency**: Weight near-term demand (weeks 0-2) more heavily than distant forecast.\n5. **Lead-time frontloading with conditions**: Apply modest lead-time boost only when backlog AND pipeline are both low (true risk of stockout).\n\nI'll propose three policies:\n- **Policy A**: Enhanced backlog + pipeline depletion signal (conservative, tuned boost).\n- **Policy B**: Backlog + tariff penalty + demand-weighting (add cost awareness).\n- **Policy C**: Aggressive backlog with lead-time boost (test if more aggressive allocation helps).",
+   "proposed": [
+    {
+     "hash": "be20033f68e8",
+     "reward": 0.47027900374338105
+    },
+    {
+     "hash": "135a26cd7dae",
+     "reward": -999.0
+    },
+    {
+     "hash": "ce2103016b3e",
+     "reward": 0.4699062375097181
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "71d2100c00ae",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "a00e3ffbc8bc",
+     "reward": 0.3922465973614549
+    },
+    {
+     "hash": "50b2bb5edc96",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "df28c56a9d6f",
+     "reward": 0.28523454873877835
+    },
+    {
+     "hash": "170aa92f44fc",
+     "reward": -999.0
+    },
+    {
+     "hash": "add48f42d409",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 3,
+    "output_tokens": 4190,
+    "cached_tokens": 5962,
+    "cache_write_tokens": 6550,
+    "cost": 0.0297367
+   }
+  },
+  {
+   "iter": 12,
+   "reasoning": "Looking at the provided policies, I observe several patterns:\n\n1. **Successful approaches (score > 0.4)**: Policies that use backlog signals and demand forecasts with moderate allocation boosts (0.85-1.2x range) tend to score ~0.47.\n\n2. **Failed approaches**: \n   - The chokepoint-aware policy (-0.24) tried to use `release_mode` and `override_qty` but produced worse results, suggesting these levers may not be effective without proper queue dynamics modeling.\n   - Two policies failed with errors accessing non-existent fields ('c' instead of 'c0', array truth value ambiguity).\n\n3. **Key insights**:\n   - Backlog per commodity is a strong signal for urgency.\n   - Lead-time aware routing (boosting longer routes when backlogs exist) is useful.\n   - Demand forecasts (especially 0-2 week horizon) drive decisions.\n   - Soft caps to prevent exceeding total allowed capacity are important.\n   - Simple boosts (1.0-1.2x) outperform complex multi-factor models.\n\n4. **Opportunities for improvement**:\n   - Better integration of demand forecast across all horizon weeks (not just 0-2).\n   - More sophisticated pipeline stock awareness to avoid over-booking.\n   - Strategic use of `release_mode` tied to chokepoint constraints and queue pressure.\n   - Prohibition/tariff awareness to avoid blocked routes.\n   - WIP (work-in-progress) visibility to plan ahead.\n\n5. **Proposed changes**:\n   - Policy 1: Refine demand-driven allocation with better multi-horizon weighting and pipeline awareness.\n   - Policy 2: Implement slot-level prohibition checking and tariff-aware routing.\n   - Policy 3: Add strategic release_mode control based on queue pressure and chokepoint throughput.\n   - Policy 4: Conservative base with adaptive lead-time pre-buffering based on disruption signals.",
+   "proposed": [
+    {
+     "hash": "82a16c4d8a0d",
+     "reward": 0.25713569492265304
+    },
+    {
+     "hash": "b019d6cce224",
+     "reward": 0.18479283728398604
+    },
+    {
+     "hash": "8547bd517828",
+     "reward": -0.5002840096565679
+    },
+    {
+     "hash": "7e9766b20fb2",
+     "reward": 0.22363324612509672
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "7bedb12596aa",
+     "reward": 0.32414970511382535
+    },
+    {
+     "hash": "71d2100c00ae",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "f41712b22299",
+     "reward": -0.23657867626939227
+    },
+    {
+     "hash": "e5a2be516b6b",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "5717f6c7f0fa",
+     "reward": -999.0
+    },
+    {
+     "hash": "135a26cd7dae",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 3,
+    "output_tokens": 5401,
+    "cached_tokens": 5962,
+    "cache_write_tokens": 6101,
+    "cost": 0.035230449999999996
+   }
+  },
+  {
+   "iter": 13,
+   "reasoning": "Analyzing the provided policies, I see scores ranging from 0.39 to 0.47, with two errors. The best performer (0.47) uses simple full-capacity-on-allowed-slots, while attempts at sophistication (cost-aware, integrated strategy) either fail or underperform. The errors reveal two critical issues: (1) accessing non-existent fields like `edges['c']` instead of the observation's `graph_now.c`, and (2) unsafe array truth testing.\n\nKey insights from the working policies:\n- The baseline's simplicity (0.47) beats complex heuristics (0.39)\n- The environment provides rich observation data: demand forecasts, backlogs, pipeline state, graph dynamics, warnings, and pending prohibitions\n- Disruption signals (warnings, closures, pending prohibitions) should drive pre-buffering on threatened routes\n- Chokepoint management via override_qty and release_mode is available but underexploited\n\nMy strategy focuses on three improvements:\n\n1. **Demand-driven flow scaling**: Use current backlog and near-term demand forecasts (weeks 0-2) to modulate flows. Routes feeding high-demand sinks get priority.\n\n2. **Disruption pre-buffering**: Detect upcoming prohibitions (pending_prohibitions), current closures (closure_end), and warning scores. Boost flow on routes facing imminent threats (1-3 weeks out) to frontload inventory before disruptions hit.\n\n3. **Lead-time amplification**: Long lead-time routes benefit most from early dispatch to mitigate disruption risk. Boost allocation for routes with tau \u2265 3 weeks when disruption signals are elevated.\n\n4. **Safe constraint handling**: Only allocate up to observed allowed capacity. Normalize total flows if they exceed a reasonable threshold.\n\nThese three policies explore: (P1) conservative demand-scaling, (P2) aggressive disruption-aware pre-buffering, and (P3) balanced demand+disruption integration.",
+   "proposed": [
+    {
+     "hash": "066ecb81fcd5",
+     "reward": -999.0
+    },
+    {
+     "hash": "80f28c17a821",
+     "reward": 0.09639612394858282
+    },
+    {
+     "hash": "b938044b2a9a",
+     "reward": -999.0
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "56a1db6f904b",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "e214a3dc64c4",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "a00e3ffbc8bc",
+     "reward": 0.3922465973614549
+    },
+    {
+     "hash": "2d8ad3e42afa",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "eb43f2210081",
+     "reward": -999.0
+    },
+    {
+     "hash": "dcb1b2e6d1e3",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 3,
+    "output_tokens": 3997,
+    "cached_tokens": 5962,
+    "cache_write_tokens": 5840,
+    "cost": 0.0278842
+   }
+  },
+  {
+   "iter": 14,
+   "reasoning": "I analyze the existing policies and their scores:\n\n1. **Best performers** (0.4699): Backlog-driven (simplified), lead-time conditional, and disruption-aware policies all tie at 0.47.\n2. **Weaker performer** (0.324): Demand-forecast-driven with multi-week lookahead scores lower.\n3. **Failed policies** (\u2212999): Two complex policies fail due to `.index()` calls on lists and boolean array ambiguity. These teach me:\n   - Avoid using Python `.index()` on layout lists; use numpy indexing instead.\n   - Avoid direct conditionals on arrays; use `.any()`, `.all()`, or scalar extraction.\n\n**Key insights from top policies:**\n- The 0.47 backlog-driven approach is simple and robust: apply a commodity-level boost (up to 1.15x) based on normalized backlog pressure.\n- Lead-time boost conditional on high backlog helps front-load long routes when needed.\n- Disruption-awareness (boosting threatened routes) is valuable but not better in isolation.\n\n**Proposed improvements:**\n1. **Combine best ideas**: Start with robust backlog-driven base, add demand-forecast weighting (avoid heavy lead-time boost), and include mild disruption awareness.\n2. **Safer demand forecast**: Use only current + next week (avoid ambiguous indexing), weight conservatively.\n3. **Flexible capacity ramp**: Don't always hit full masked capacity; scale by urgency to avoid over-committing.\n4. **Avoid hard failures**: No `.index()`, no array conditionals, explicit `.any()` checks, scalar extractions with `int()`.\n\n**Three candidate policies:**\n- **Policy A**: Conservative backlog + safe demand forecast (merge best of 0.47 and 0.32).\n- **Policy B**: Aggressive backlog boost + early disruption awareness (push the 0.47 approach).\n- **Policy C**: Balanced backlog + pipeline awareness (add pipeline inventory check to avoid over-sending).",
+   "proposed": [
+    {
+     "hash": "4039fb904a7d",
+     "reward": -999.0
+    },
+    {
+     "hash": "a1fdcb19af90",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "c3615ead0799",
+     "reward": 0.16744218658598117
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "71d2100c00ae",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "7bedb12596aa",
+     "reward": 0.32414970511382535
+    },
+    {
+     "hash": "50b2bb5edc96",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "2d8ad3e42afa",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "dcb1b2e6d1e3",
+     "reward": -999.0
+    },
+    {
+     "hash": "ed40acaf2c8d",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 3,
+    "output_tokens": 3685,
+    "cached_tokens": 5962,
+    "cache_write_tokens": 6384,
+    "cost": 0.0270042
+   }
+  },
+  {
+   "iter": 15,
+   "reasoning": "Looking at the provided policies, I can identify several issues and opportunities:\n\n1. **Top performer (0.47)**: The disruption-aware policy boosts flows on threatened routes, which works but is modest. The baseline also scores 0.47.\n\n2. **Failures (-999)**: Two policies fail with \"ambiguous truth value\" errors\u2014they use `if` or boolean operators on arrays. Both try to index `layout_chokepoints` with `.index()`, which fails on numpy arrays.\n\n3. **Key insights**:\n   - Simple capacity-based policies score ~0.47\n   - Pipeline-aware policies (policy 3) perform worse (0.24), suggesting that naively reducing flow on congested routes hurts\n   - Demand-forecast prioritization (policy 4) scores 0.31, suggesting weak weighting\n   - The two complex integrated policies crash, but their ideas (demand assessment, pipeline balance, override logic) are sound if implemented correctly\n\n4. **Design improvements**:\n   - **Demand-driven allocation**: Use backlog and forecast to increase flows on high-need commodities (not reduce them)\n   - **Smart capacity usage**: Send more on allowed slots when demand is high, not less when pipeline is full\n   - **Tariff/cost awareness**: Penalize expensive routes moderately, not aggressively\n   - **Chokepoint overrides**: Activate tanker overrides when chokepoints are closing and demand is high\n   - **Avoid numpy indexing bugs**: Never call `.index()` on static layout tables; use direct lookup or loops\n   - **Robust observation handling**: Check `.observed` masks before using data\n\n5. **Strategy**: Propose three policies:\n   - **Policy 1**: Demand-responsive allocation with modest cost awareness (builds on policy 4, stronger weighting)\n   - **Policy 2**: Intelligent override + threat-based boosting (combines disruption and override logic safely)\n   - **Policy 3**: Lightweight dynamic throttling based on backlog + forecast (avoid over-aggressive pipeline reduction)",
+   "proposed": [
+    {
+     "hash": "e3ba692f778a",
+     "reward": -999.0
+    },
+    {
+     "hash": "455d0a2c54fd",
+     "reward": -999.0
+    },
+    {
+     "hash": "2ea2e3fe2234",
+     "reward": -999.0
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "56a1db6f904b",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "2d8ad3e42afa",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "541be8ca65b3",
+     "reward": 0.23869300481681008
+    },
+    {
+     "hash": "655100148b79",
+     "reward": 0.31456237528312153
+    },
+    {
+     "hash": "135a26cd7dae",
+     "reward": -999.0
+    },
+    {
+     "hash": "dcb1b2e6d1e3",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 3,
+    "output_tokens": 5125,
+    "cached_tokens": 5962,
+    "cache_write_tokens": 5898,
+    "cost": 0.0335967
+   }
+  },
+  {
+   "iter": 16,
+   "reasoning": "Analyzing the provided policies, I observe:\n\n1. **Top performer (0.470)**: Uses full capacity with a backlog-driven boost (0.7 weight on backlog pressure, 0.3 on pipeline depletion). This is close to the naive baseline but adds targeted pressure signals.\n\n2. **Second (0.470)**: Pure baseline\u2014just send full capacity where allowed.\n\n3. **Failures**: Two policies crash on boolean array evaluation (`if` or `if not` on arrays). These indicate improper use of numpy array indexing in conditionals.\n\n4. **Key insights**:\n   - Simple capacity-based allocation works well (0.47+)\n   - Backlog-driven boosts help modestly\n   - The top policy carefully combines backlog and pipeline signals with soft caps\n   - Avoid hard boolean checks on arrays; use `.any()`, `.all()`, or explicit indexing\n   - Policies that over-weight disruption signals or tariffs underperform (0.28\u20130.32)\n\n**Strategy for improvement**:\n- The best approach so far is to send near-capacity allocation *with smart modulation* based on **current backlog and pipeline depth**\n- Refine the boost mechanism: instead of a 0.20x multiplier, try a more aggressive 0.30x boost on high-backlog commodities\n- Add a **simple pipeline-aware release strategy** for tanker cargo at chokepoints (override slots): release more when queues are building\n- Implement **smoother cost/tariff penalties** that apply proportionally rather than binary cutoffs\n- Ensure all array conditionals use proper numpy operations\n\n**Three candidate improvements**:\n1. **Aggressive backlog boost** (0.30x instead of 0.20x) with tighter pipeline integration\n2. **Tanker release strategy** using queue depth to trigger override releases\n3. **Adaptive cost penalty** that scales smoothly with tariff/freight ratio rather than binary thresholds\n",
+   "proposed": [
+    {
+     "hash": "3a2801c0af12",
+     "reward": -999.0
+    },
+    {
+     "hash": "598580451b87",
+     "reward": -0.6471418277556716
+    },
+    {
+     "hash": "0f3abac34b80",
+     "reward": 0.4699062375097186
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "be20033f68e8",
+     "reward": 0.47027900374338105
+    },
+    {
+     "hash": "56a1db6f904b",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "df28c56a9d6f",
+     "reward": 0.28523454873877835
+    },
+    {
+     "hash": "f7858336520d",
+     "reward": 0.3173898248481889
+    },
+    {
+     "hash": "4039fb904a7d",
+     "reward": -999.0
+    },
+    {
+     "hash": "add48f42d409",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 3,
+    "output_tokens": 4627,
+    "cached_tokens": 5962,
+    "cache_write_tokens": 5381,
+    "cost": 0.03046045
+   }
+  },
+  {
+   "iter": 17,
+   "reasoning": "Analyzing the provided policies, I observe several patterns:\n\n1. **Working policies (scores 0.31-0.47)**: These use demand forecasts and backlog signals to modulate flows between 0.7-1.3x capacity. The best performers (0.47) combine aggressive backlog boosting with lead-time frontloading, but apply hard capacity caps to stay feasible.\n\n2. **Failed policies**: Two crashed with bugs:\n   - KeyError on 'supply_slots': accessing a table that isn't in static (likely not present in Small variant)\n   - Truth value ambiguity: using `if array` instead of `.any()` or `.all()`\n\n3. **Key insights from top performer (0.47)**:\n   - Sends full capacity masked by action_mask (aggressive baseline)\n   - Boosts further by 1.0-1.3x for backlog, 1.0-1.1x for lead-time depletion\n   - Applies hard capacity cap at the end to stay feasible\n   - Combines multiple signals (backlog pressure AND pipeline depletion) before applying lead-time boost\n\n4. **Opportunities for improvement**:\n   - The 0.31 and 0.47 policies don't use `stock.qty` or `wip` to track on-hand inventory, which could improve demand satisfaction estimation\n   - No explicit demand-supply matching (routing high-demand flows to sinks that need them)\n   - Pipeline arrival timing (weeks) is observed but not used to predict when stock will arrive\n   - Override/release modes for chokepoint tanker cargo are never set (always default)\n   - Cost signals (tariff, freight) are observed but ignored\n   - The 0.47 strategy of aggressive boosting + hard cap seems most promising\n\n5. **New strategy ideas**:\n   - **Policy A**: Extend the 0.47 backlog-boost approach but add stock-aware demand prediction (reduce urgency if stock+pipeline covers next week)\n   - **Policy B**: Use pipeline arrival week timing to frontload routes with delayed arrivals\n   - **Policy C**: Implement priority allocation: route flows to action slots feeding highest-urgency sinks\n   - **Policy D**: Use tariff/cost as secondary signal to reduce expensive routes when backlog is low\n   - **Policy E**: Set release modes to 1 (override) when tanker chokepoint backlog is high, holding otherwise\n\nI'll propose three complementary policies: one pushing further on the 0.47 backbone (stock-aware), one adding pipeline-timing signals, and one implementing basic chokepoint override logic.",
+   "proposed": [
+    {
+     "hash": "a6ed969fb869",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "10efad221d64",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "f706e857484c",
+     "reward": 0.4699062375097181
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "655100148b79",
+     "reward": 0.31456237528312153
+    },
+    {
+     "hash": "ce2103016b3e",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "c3615ead0799",
+     "reward": 0.16744218658598117
+    },
+    {
+     "hash": "71d2100c00ae",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "e0b09b7ffacb",
+     "reward": -999.0
+    },
+    {
+     "hash": "e3ba692f778a",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 3,
+    "output_tokens": 5303,
+    "cached_tokens": 5962,
+    "cache_write_tokens": 6049,
+    "cost": 0.03467545
+   }
+  },
+  {
+   "iter": 18,
+   "reasoning": "Analyzing the provided policies, I observe several patterns:\n\n1. **Best performer (0.4699)**: Aggressive baseline sending full nominal capacity on allowed slots. Simple, but effective.\n\n2. **Second-best (0.4703)**: Enhanced backlog-driven with pipeline depletion\u2014uses commodity-level inventory signals to modulate flow.\n\n3. **Failures (\u2013999)**: Two policies failed:\n   - \"Threat-aware + chokepoint override\": Truth value ambiguity (comparing array to scalar)\n   - \"Hybrid urgency \u00d7 cost-efficiency\": KeyError on 'c' (should be \"cost\" in graph_now)\n\n4. **Key insights**:\n   - Simple aggressive strategies outperform complex multi-factor models\n   - The baseline of sending allowed capacity consistently scores ~0.47\n   - Over-optimization (like multi-horizon weighting, cost-efficiency blending) hurts performance\n   - Disruption awareness (threat boost) is promising but needs careful implementation\n\n5. **Opportunities**:\n   - The demand-driven policy (0.257) underperforms because it over-reduces allocation (0.80 base factor)\n   - The disruption-aware policy (0.4699) matches the baseline\u2014threat boosting alone doesn't help much\n   - Override and release strategies are under-explored and may unlock value at chokepoints\n   - Simpler heuristics (high backlog + low pipeline = boost) work better than weighted combinations\n\n**New strategy directions**:\n\nA) **Capacity maximization with minimal signal noise**: Send more aggressively on allowed slots, with light modulation for extreme backlog.\n\nB) **Backlog threshold-based**: Use binary decision rules (backlog > threshold \u2192 boost, else \u2192 baseline) rather than normalized continuous factors.\n\nC) **Pipeline-driven with lead-time coupling**: Detect short lead-time edges and route more through them when pipeline is low.\n\nD) **Chokepoint override activation**: Implement override_qty and release_mode more carefully to manage tanker cargo at constrained chokepoints.\n\nE) **Simplify and boost baseline**: The baseline at 0.4699 is already strong; beat it by removing artificial caps and using modest, signal-driven boosts on a subset of slots.",
+   "proposed": [
+    {
+     "hash": "8651782e40ba",
+     "reward": 0.4699062375097186
+    },
+    {
+     "hash": "624f0546292a",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "a8945c38a89d",
+     "reward": 0.47151635098253686
+    },
+    {
+     "hash": "c6c0075bf505",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "f750224440d8",
+     "reward": 0.4699062375097181
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "21ba44cd2574",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "be20033f68e8",
+     "reward": 0.47027900374338105
+    },
+    {
+     "hash": "2d8ad3e42afa",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "82a16c4d8a0d",
+     "reward": 0.25713569492265304
+    },
+    {
+     "hash": "455d0a2c54fd",
+     "reward": -999.0
+    },
+    {
+     "hash": "5717f6c7f0fa",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 3,
+    "output_tokens": 4825,
+    "cached_tokens": 5962,
+    "cache_write_tokens": 6520,
+    "cost": 0.0328742
+   }
+  },
+  {
+   "iter": 19,
+   "reasoning": "Looking at the provided policies, I see several patterns:\n\n1. **Top performers (0.47)** use simple full-capacity strategies, suggesting that aggressive throughput is valuable.\n2. **The 0.4715 policy** tries lead-time routing with pipeline balancing but only slightly outperforms the baseline, and the logic is complex.\n3. **Two failed policies** (-999) both have the bug: `if tariff_obs[edge_idx, k_idx]` and similar array indexing where the result is an array, not a boolean. This breaks Python's truth value check.\n4. **Key insight**: The environment penalizes shortage heavily (via `pi` per unit unserved). Aggressive routing to prevent backlog is better than complex heuristics.\n\nMy strategy for improvement:\n\n**Policy 1 (Conservative demand-driven):** Scale flows based on backlog and near-term demand urgency. Send less on expensive routes to reduce costs when demand is low.\n\n**Policy 2 (Pipeline-aware routing):** Track pipeline depth per commodity and edge. Boost flows on routes with short lead times when pipeline is building up (to avoid congestion), reduce on long-lead routes.\n\n**Policy 3 (Tariff-penalty with safety floor):** Use tariff rates to reduce flows on expensive routes, but maintain a minimum throughput floor to prevent starvation.\n\n**Policy 4 (Demand forecast with lookahead):** Use the 8-week demand forecast to pre-emptively route goods. Front-load shipments when demand spikes are forecasted in weeks 2-4.\n\nAll policies will:\n- Avoid the array-bool bug by using `.any()` or scalar checks\n- Read shapes from config, not hard-code\n- Respect action_mask strictly\n- Keep override/release at default (no tanker logic yet)\n- Use numpy operations efficiently",
+   "proposed": [
+    {
+     "hash": "d32c59027b94",
+     "reward": 0.2492089785473344
+    },
+    {
+     "hash": "225207781b1a",
+     "reward": 0.4699062375097168
+    },
+    {
+     "hash": "89621ff010c2",
+     "reward": 0.41915838448004816
+    },
+    {
+     "hash": "de98e94688b6",
+     "reward": 0.48062062906183634
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "e214a3dc64c4",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "56a1db6f904b",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "a8945c38a89d",
+     "reward": 0.47151635098253686
+    },
+    {
+     "hash": "21ba44cd2574",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "135a26cd7dae",
+     "reward": -999.0
+    },
+    {
+     "hash": "add48f42d409",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 3,
+    "output_tokens": 4575,
+    "cached_tokens": 5962,
+    "cache_write_tokens": 4337,
+    "cost": 0.02889545
+   }
+  },
+  {
+   "iter": 20,
+   "reasoning": "Looking at the provided policies, I see several patterns:\n\n1. The best performers (0.47) use simple strategies: send capacity on allowed slots, with modest boosts (1.05-1.25x) for backlog-driven urgency.\n2. The middle performer (0.23) tried multi-week lookahead but scored worse, suggesting over-sophistication may hurt.\n3. Two policies failed: one with a KeyError ('c' doesn't exist; should use 'graph_now.c'), another with KeyError ('supply_slots' in static; it's in layout, not static).\n\nKey insights:\n- Simple capacity-based allocation with action_mask works well (0.47 baseline)\n- Modest backlog-driven boosts help (1.05x for high-backlog commodities)\n- Avoid accessing wrong config keys (static vs layout, edges.c vs graph_now.c)\n- Pipeline and inventory state seem less important than immediate demand\n- The environment likely rewards keeping flows high where permitted while respecting constraints\n\nI'll propose three improvements:\n1. **Refined backlog boost**: Increase the boost on high-backlog routes (1.05 \u2192 1.15), make it more responsive to actual pressure levels\n2. **Lead-time aware pre-buffering**: Routes with longer transit times should be allocated more early to compensate for delays\n3. **Demand forecast integration**: Use near-term forecast (weeks 0-2) to adjust allocation, not inventory ratios\n4. **Simplified override logic**: Use simpler backlog-driven tanker release decisions",
+   "proposed": [
+    {
+     "hash": "58ae656f8ba3",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "91b3ccb03e9e",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "1f637b18a6ef",
+     "reward": 0.37986577423938317
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "8651782e40ba",
+     "reward": 0.4699062375097186
+    },
+    {
+     "hash": "17974d3b1b54",
+     "reward": 0.23154829213589143
+    },
+    {
+     "hash": "f706e857484c",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "e5a2be516b6b",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "5717f6c7f0fa",
+     "reward": -999.0
+    },
+    {
+     "hash": "e0b09b7ffacb",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 3,
+    "output_tokens": 3022,
+    "cached_tokens": 5962,
+    "cache_write_tokens": 6232,
+    "cost": 0.0234992
+   }
+  },
+  {
+   "iter": 21,
+   "reasoning": "The provided policies show a range of scores from 0.47 down to -0.23, with two failures due to ambiguous boolean array operations. The best performers (0.47) use simple backlog-driven boosting with mild modulation, while the failures attempted to use boolean operators on numpy arrays directly.\n\nKey observations:\n1. High backlog should drive increased flow allocation (backlog-driven models score ~0.47)\n2. Lead-time considerations help when properly weighted (the 0.47 short-lead-time policy)\n3. Multi-week lookahead with inventory damping scores lower (0.23), suggesting conservative approaches underperform\n4. Failed policies tried to use `if array.any()` with scalar branching\u2014must use explicit indexing and avoid ambiguous truthiness\n5. Simple baseline: allocate based on action_mask * capacity + modest backlog boost\n\nTo improve beyond 0.47:\n- Combine backlog + pipeline pressure (longer visibility)\n- Use demand forecast more aggressively for near-term weeks (0-2)\n- Avoid over-conservative damping by inventory levels\n- Implement proper array masking without boolean ambiguity\n- Consider temporal dynamics: boost on routes facing imminent threats\n- Use stock levels smartly: low stock + high demand = aggressive push\n\nProposed improvements:\n1. **Aggressive demand-driven**: Weight backlog heavily (0.7x) + current+next forecast (0.3x), no inventory damping\n2. **Pipeline-aware**: If pipeline for commodity is low, push more; if high, back off\n3. **Threat-aware**: Boost routes 1-3 weeks before prohibition deadlines\n4. **Stock depletion protection**: If stock is low and demand high, maximize flow",
+   "proposed": [
+    {
+     "hash": "6a9d9883d857",
+     "reward": 0.40086818017976117
+    },
+    {
+     "hash": "8811cf3614f1",
+     "reward": 0.09114856386537351
+    },
+    {
+     "hash": "cf337e012ba6",
+     "reward": 0.28039523901183616
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "71d2100c00ae",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "17974d3b1b54",
+     "reward": 0.23154829213589143
+    },
+    {
+     "hash": "e5a2be516b6b",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "a8945c38a89d",
+     "reward": 0.47151635098253686
+    },
+    {
+     "hash": "2ea2e3fe2234",
+     "reward": -999.0
+    },
+    {
+     "hash": "135a26cd7dae",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 3,
+    "output_tokens": 4369,
+    "cached_tokens": 5962,
+    "cache_write_tokens": 6316,
+    "cost": 0.0303392
+   }
+  },
+  {
+   "iter": 22,
+   "reasoning": "The provided policies show a range of approaches with scores from -999 (errors) to 0.47. Let me analyze the patterns:\n\n1. **Best performing (0.47)**: The baseline simply sends full capacity on allowed slots. This suggests the simple approach works well.\n\n2. **Second best (0.31)**: Demand-forecast priority weights commodities by urgency (backlog + forecast) with modest factors (0.85-1.15).\n\n3. **Lead-time aware (0.47)**: Attempts to boost long routes and high-backlog commodities with factors up to 1.25x, but performs at baseline level.\n\n4. **Failed policies**: Two errors reveal pitfalls:\n   - Ambiguous truth value from array comparison (using `if` on arrays)\n   - KeyError on 'c' field (should be graph_now.c, not edges.c)\n\n**Key insights:**\n- The baseline of sending full capacity is actually quite strong (0.47)\n- Modest demand-responsive adjustments can help slightly (0.31)\n- Over-aggressive boosting doesn't improve performance much\n- Need to be careful with array indexing and observation field access\n\n**New strategy directions to explore:**\n\n1. **Demand-lead time matching**: Route more flow to edges when demand peaks align with their lead times\n2. **Pipeline state awareness**: Track what's already in transit and adjust accordingly\n3. **Tariff and prohibition avoidance**: Proactively shift flows away from threatened edges\n4. **Inventory targeting**: Use stock observations to avoid over-sending to nodes with high inventory\n5. **Cost minimization**: Prefer cheaper routes while meeting demand\n6. **Dynamic demand responsiveness**: Adjust allocations based on forecast horizon uncertainty\n\nI'll propose three policies:\n1. **Pipeline-aware**: Considers what's already in transit before committing more\n2. **Threat-aware with conservative boosting**: Anticipates prohibitions with measured responses\n3. **Multi-signal balancing**: Combines demand, cost, and inventory signals without aggressive factors",
+   "proposed": [
+    {
+     "hash": "fcfea0102f35",
+     "reward": -0.025218561760539337
+    },
+    {
+     "hash": "da995a82b297",
+     "reward": 0.3864771687092224
+    },
+    {
+     "hash": "60a214b81403",
+     "reward": 0.28909448691824724
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "91b3ccb03e9e",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "2ae94ae244ea",
+     "reward": 0.006889424796628428
+    },
+    {
+     "hash": "655100148b79",
+     "reward": 0.31456237528312153
+    },
+    {
+     "hash": "56a1db6f904b",
+     "reward": 0.4699062375097181
+    },
+    {
+     "hash": "455d0a2c54fd",
+     "reward": -999.0
+    },
+    {
+     "hash": "eb43f2210081",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 3,
+    "output_tokens": 4380,
+    "cached_tokens": 5962,
+    "cache_write_tokens": 6202,
+    "cost": 0.0302517
+   }
+  },
+  {
+   "iter": 23,
+   "reasoning": "Looking at the provided policies, I see several patterns:\n\n1. **Best performer (0.317)**: Uses full capacity with cost/tariff-based reductions on expensive routes. Simple and effective.\n\n2. **Failed policies (-999)**: Both fail on the same issue: using `.any()` or `.all()` on arrays when checking validity. This suggests array indexing or shape issues.\n\n3. **Common issues across policies**:\n   - Over-aggressive backlog weighting can create imbalanced flows\n   - Cost modulation logic sometimes uses unclear thresholds\n   - Some policies don't properly handle the observed masks\n   - Threat boost logic uses array indexing that may fail\n\n4. **Key insights from observations**:\n   - `action_mask` is the critical constraint (what's actually allowed)\n   - Backlog is high-value signal but shouldn't dominate completely\n   - Cost and tariff data need careful observed-mask checks\n   - Pipeline inventory is complex to track correctly\n   - Lead time should influence timing but conservatively\n\n5. **New approach**: Build on the 0.317 baseline (which is solid) but:\n   - Add more sophisticated demand signal from backlog + forecast\n   - Include pipeline inventory tracking (simpler than failed attempt)\n   - Use threat warnings to pre-stage goods\n   - Better tariff/cost filtering\n   - Avoid complex array boolean logic that causes crashes\n\n6. **Strategy**:\n   - Policy A: Enhance 0.317 baseline with demand-aware modulation (moderate backlog boost)\n   - Policy B: Add pipeline inventory awareness more carefully\n   - Policy C: Focus on threat-driven pre-staging with conservative allocation\n   - Policy D: Simplified lead-time aware version without the complex indexing\n",
+   "proposed": [
+    {
+     "hash": "19995d094b52",
+     "reward": 0.10051967062161399
+    },
+    {
+     "hash": "c33ddd7d2522",
+     "reward": 0.0963782808991654
+    },
+    {
+     "hash": "28e88cbebc60",
+     "reward": 0.22955750262253025
+    },
+    {
+     "hash": "5dcfca00c861",
+     "reward": 0.00258045890229412
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "d32c59027b94",
+     "reward": 0.2492089785473344
+    },
+    {
+     "hash": "f7858336520d",
+     "reward": 0.3173898248481889
+    },
+    {
+     "hash": "2ae94ae244ea",
+     "reward": 0.006889424796628428
+    },
+    {
+     "hash": "cf337e012ba6",
+     "reward": 0.28039523901183616
+    },
+    {
+     "hash": "2ea2e3fe2234",
+     "reward": -999.0
+    },
+    {
+     "hash": "0227ef12b7da",
+     "reward": -999.0
+    }
+   ],
+   "usage": {
+    "input_tokens": 3,
+    "output_tokens": 5244,
+    "cached_tokens": 5962,
+    "cache_write_tokens": 7615,
+    "cost": 0.036337949999999994
+   }
+  }
+ ]
+}

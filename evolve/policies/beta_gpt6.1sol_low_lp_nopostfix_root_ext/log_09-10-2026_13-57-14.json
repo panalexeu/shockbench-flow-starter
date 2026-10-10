@@ -1,0 +1,593 @@
+{
+ "meta": {
+  "task": "small",
+  "entropy": 2004,
+  "train_episodes": 16,
+  "holdout": "dev",
+  "quick": false,
+  "iters": 24,
+  "alpha_model": false,
+  "alpha": 0.25,
+  "sample_n": 3,
+  "sample_e": 2,
+  "sample_t": 1.0,
+  "policy_dir": null,
+  "postfix": null,
+  "alpha_reasoning": "low",
+  "beta_reasoning": "low",
+  "alpha_name": "gpt-6.1-sol",
+  "beta_name": "gpt-6.1-sol",
+  "lp": true
+ },
+ "iterations": [
+  {
+   "iter": 0,
+   "model": "gpt-6.1-sol",
+   "reasoning_effort": "low",
+   "reasoning": "With no baseline policy supplied, I propose a rolling-horizon linear program that jointly plans energy shipments, chip shipments, fabrication, packaging, and demand service. It accounts for existing pipeline and work in process, shared edge capacities, storage limits, current prohibitions, and chokepoint congestion. High shedding and shortage penalties prioritize continuity, while terminal inventory targets reduce short-sighted depletion. Only the first week's planned dispatches are executed; the plan is rebuilt from new observations each week.",
+   "proposed": [
+    {
+     "hash": "9891d2344c8a",
+     "reward": -1.4332731008460247
+    }
+   ],
+   "sampled": [],
+   "usage": {
+    "input_tokens": 33521,
+    "output_tokens": 3948,
+    "cached_tokens": 0,
+    "cache_write_tokens": 33500,
+    "cost": 0.123272
+   }
+  },
+  {
+   "iter": 1,
+   "model": "gpt-6.1-sol",
+   "reasoning_effort": "low",
+   "reasoning": "The previous planner can become infeasible when fixed arrivals exceed storage, and its grid model allows unrealistic substitution between fuel segments. That can leave grids short of a required fuel even when the LP predicts adequate power. This replacement adds disposal variables, plans each grid fuel separately, maintains rationing buffers, constrains complete routes rather than only their first edges, and uses announced closure end dates. It retains a rolling-horizon linear program for every action.",
+   "proposed": [
+    {
+     "hash": "a42ca3002e77",
+     "reward": 0.6492736832231688
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "9891d2344c8a",
+     "reward": -1.4332731008460247
+    }
+   ],
+   "usage": {
+    "input_tokens": 36740,
+    "output_tokens": 4531,
+    "cached_tokens": 33500,
+    "cache_write_tokens": 0,
+    "cost": 0.05514
+   }
+  },
+  {
+   "iter": 2,
+   "model": "gpt-6.1-sol",
+   "reasoning_effort": "low",
+   "reasoning": "The stronger policy correctly preserves fuel-specific grid consumption, unlike the weaker policy's freely substitutable energy model. I retain that structure and add rolling fuel-reserve penalties, explicit rationing constraints, and modest rolling sink buffers. These discourage just-in-time fuel delivery and reduce exposure to forecast errors. The LP also reserves downstream capacity for already-dispatched cargo and includes announced prohibitions in route planning.",
+   "proposed": [
+    {
+     "hash": "ccbc20d1b36c",
+     "reward": 0.6453100287603635
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "a42ca3002e77",
+     "reward": 0.6492736832231688
+    },
+    {
+     "hash": "9891d2344c8a",
+     "reward": -1.4332731008460247
+    }
+   ],
+   "usage": {
+    "input_tokens": 40533,
+    "output_tokens": 4467,
+    "cached_tokens": 33500,
+    "cache_write_tokens": 0,
+    "cost": 0.062086
+   }
+  },
+  {
+   "iter": 3,
+   "model": "gpt-6.1-sol",
+   "reasoning_effort": "low",
+   "reasoning": "The strongest policy already uses a useful time-expanded LP. Its main weakness is that reserves are encouraged mostly at the planning horizon, so it can run lean in the intervening weeks. This candidate adds modest weekly fuel and finished-chip reserve penalties, models gas rationing as a capacity constraint, and extends the horizon. Reserve targets taper near episode end to avoid unnecessary purchases. These are proposed improvements, not measured score gains.",
+   "proposed": [
+    {
+     "hash": "f3b3e6fdf9b1",
+     "reward": 0.6571124331141563
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "ccbc20d1b36c",
+     "reward": 0.6453100287603635
+    },
+    {
+     "hash": "9891d2344c8a",
+     "reward": -1.4332731008460247
+    },
+    {
+     "hash": "a42ca3002e77",
+     "reward": 0.6492736832231688
+    }
+   ],
+   "usage": {
+    "input_tokens": 44513,
+    "output_tokens": 4327,
+    "cached_tokens": 33500,
+    "cache_write_tokens": 0,
+    "cost": 0.068646
+   }
+  },
+  {
+   "iter": 4,
+   "model": "gpt-6.1-sol",
+   "reasoning_effort": "low",
+   "reasoning": "The strongest baseline still assumes queued cargo arrives immediately after its nominal remaining transit time, even when several cohorts compete for reduced chokepoint throughput. This can hide impending fuel shortages. The proposed LP schedules existing cargo against edge and chokepoint capacity first, reserves that capacity, and plans new dispatches against the residual. It also adds modest wafer buffers and includes observed war-risk charges in route costs. These changes target more reliable replenishment without substantially increasing precautionary shipping.",
+   "proposed": [
+    {
+     "hash": "06040ed398e8",
+     "reward": 0.6838368602356916
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "a42ca3002e77",
+     "reward": 0.6492736832231688
+    },
+    {
+     "hash": "ccbc20d1b36c",
+     "reward": 0.6453100287603635
+    },
+    {
+     "hash": "f3b3e6fdf9b1",
+     "reward": 0.6571124331141563
+    }
+   ],
+   "usage": {
+    "input_tokens": 45139,
+    "output_tokens": 5143,
+    "cached_tokens": 33500,
+    "cache_write_tokens": 0,
+    "cost": 0.078058
+   }
+  },
+  {
+   "iter": 5,
+   "model": "gpt-6.1-sol",
+   "reasoning_effort": "low",
+   "reasoning": "The strongest policy uses useful safety buffers but assumes all queued cargo arrives without throughput or edge-capacity delays. This can cause it to underestimate urgent replenishment during closures and reopening congestion. The proposed policy projects existing cargo through a capacity-constrained FIFO queue simulation, reserves those capacities in its planning LP, and includes war-risk freight charges. It retains the longer planning horizon and fuel and chip safety buffers. Performance improvements require evaluation; they are not guaranteed.",
+   "proposed": [
+    {
+     "hash": "23d74f353b0f",
+     "reward": 0.6684860843870069
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "ccbc20d1b36c",
+     "reward": 0.6453100287603635
+    },
+    {
+     "hash": "a42ca3002e77",
+     "reward": 0.6492736832231688
+    },
+    {
+     "hash": "f3b3e6fdf9b1",
+     "reward": 0.6571124331141563
+    }
+   ],
+   "usage": {
+    "input_tokens": 45139,
+    "output_tokens": 4996,
+    "cached_tokens": 33500,
+    "cache_write_tokens": 0,
+    "cost": 0.076588
+   }
+  },
+  {
+   "iter": 6,
+   "model": "gpt-6.1-sol",
+   "reasoning_effort": "low",
+   "reasoning": "The strongest policy already handles congestion and inventory planning well, but it omits shared fleet limits and uses relatively small safety stocks despite the very high cost of energy shortages. This candidate retains rolling-horizon LP control, adds fleet-slack constraints for alternate routes, strengthens fuel and finished-chip reserves, and checks announced prohibitions at each route segment\u2019s predicted dispatch time. These changes are intended to reduce clipping and improve disruption resilience; their score still needs evaluation.",
+   "proposed": [
+    {
+     "hash": "6ed475d024b0",
+     "reward": 0.6840225148358292
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "23d74f353b0f",
+     "reward": 0.6684860843870069
+    },
+    {
+     "hash": "ccbc20d1b36c",
+     "reward": 0.6453100287603635
+    },
+    {
+     "hash": "06040ed398e8",
+     "reward": 0.6838368602356916
+    }
+   ],
+   "usage": {
+    "input_tokens": 46463,
+    "output_tokens": 5492,
+    "cached_tokens": 33500,
+    "cache_write_tokens": 0,
+    "cost": 0.084196
+   }
+  },
+  {
+   "iter": 7,
+   "model": "gpt-6.1-sol",
+   "reasoning_effort": "low",
+   "reasoning": "The strongest policy benefits from inventory buffers, but still leaves energy replenishment and chip production vulnerable to forecast error. This candidate keeps the rolling-horizon LP, increases protection for fuel and wafers, adds modest raw-chip buffers, and checks announced prohibitions at each route edge\u2019s predicted traversal time. Existing queued shipments reserve future clearance capacity before new dispatches are optimized. These are proposed improvements, not measured score gains.",
+   "proposed": [
+    {
+     "hash": "e8bd5c672b73",
+     "reward": 0.6862598929581856
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "06040ed398e8",
+     "reward": 0.6838368602356916
+    },
+    {
+     "hash": "23d74f353b0f",
+     "reward": 0.6684860843870069
+    },
+    {
+     "hash": "ccbc20d1b36c",
+     "reward": 0.6453100287603635
+    }
+   ],
+   "usage": {
+    "input_tokens": 46463,
+    "output_tokens": 5101,
+    "cached_tokens": 33500,
+    "cache_write_tokens": 0,
+    "cost": 0.080286
+   }
+  },
+  {
+   "iter": 8,
+   "model": "gpt-6.1-sol",
+   "reasoning_effort": "low",
+   "reasoning": "The strongest existing policy benefits from explicitly forecasting queued cargo. I retain that approach and add safety-stock objectives at terminals and fab inputs, where inventory can protect against disruptions before goods reach the final consumer. Fuel buffers are increased moderately because shedding is much more expensive than freight or holding. The LP also values end-of-horizon shipments and production in transit, reducing artificial shipping cutoffs near the episode end. These are proposed improvements, not measured results.",
+   "proposed": [
+    {
+     "hash": "b5d3f2d5e210",
+     "reward": 0.6844254442245871
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "a42ca3002e77",
+     "reward": 0.6492736832231688
+    },
+    {
+     "hash": "23d74f353b0f",
+     "reward": 0.6684860843870069
+    },
+    {
+     "hash": "f3b3e6fdf9b1",
+     "reward": 0.6571124331141563
+    }
+   ],
+   "usage": {
+    "input_tokens": 45600,
+    "output_tokens": 5283,
+    "cached_tokens": 33500,
+    "cache_write_tokens": 0,
+    "cost": 0.08038
+   }
+  },
+  {
+   "iter": 9,
+   "model": "gpt-6.1-sol",
+   "reasoning_effort": "low",
+   "reasoning": "The best policy already benefits from capacity-aware pipeline accounting. I retain that approach and strengthen fuel protection, whose shortage costs dominate freight. The new LP uses adaptive fuel reserves based on regional and chokepoint warnings, restores partially closed chokepoints after announced closure ends, and charges queued-route waiting costs. It also retains chip buffers and checks announced prohibitions at each edge\u2019s actual transit week. These are proposed improvements, not measured score gains.",
+   "proposed": [
+    {
+     "hash": "4415d4b03895",
+     "reward": 0.686340271467811
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "06040ed398e8",
+     "reward": 0.6838368602356916
+    },
+    {
+     "hash": "e8bd5c672b73",
+     "reward": 0.6862598929581856
+    },
+    {
+     "hash": "f3b3e6fdf9b1",
+     "reward": 0.6571124331141563
+    }
+   ],
+   "usage": {
+    "input_tokens": 46444,
+    "output_tokens": 5307,
+    "cached_tokens": 33500,
+    "cache_write_tokens": 0,
+    "cost": 0.082308
+   }
+  },
+  {
+   "iter": 10,
+   "model": "gpt-6.1-sol",
+   "reasoning_effort": "low",
+   "reasoning": "The current planners treat temporary supply outages, port strikes, and factory damage as lasting for the entire planning horizon. This can cause expensive rerouting and unnecessary shortages. This policy retains the rolling-horizon LP but gradually restores these temporary disruptions in future weeks, while keeping sanctions persistent and respecting announced closure dates. It also maintains layered fuel reserves at grids and terminals, and includes fleet constraints and terminal salvage.",
+   "proposed": [
+    {
+     "hash": "209c21bdc49e",
+     "reward": 0.6845971536973365
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "06040ed398e8",
+     "reward": 0.6838368602356916
+    },
+    {
+     "hash": "b5d3f2d5e210",
+     "reward": 0.6844254442245871
+    },
+    {
+     "hash": "6ed475d024b0",
+     "reward": 0.6840225148358292
+    }
+   ],
+   "usage": {
+    "input_tokens": 47673,
+    "output_tokens": 5844,
+    "cached_tokens": 33500,
+    "cache_write_tokens": 0,
+    "cost": 0.090136
+   }
+  },
+  {
+   "iter": 11,
+   "model": "gpt-6.1-sol",
+   "reasoning_effort": "low",
+   "reasoning": "The leading policies already perform well with rolling-horizon LPs. This proposal retains that approach but explicitly forecasts congestion-induced waiting for new lane shipments, rather than assuming every chokepoint is traversed immediately after reopening. It also tapers long-range demand forecasts toward nominal demand and uses staged inventory buffers to reduce both fuel shortages and unnecessary stock accumulation. These changes are hypotheses for improvement; they have not been evaluated here.",
+   "proposed": [
+    {
+     "hash": "799ea6ba9176",
+     "reward": 0.6864321624501813
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "209c21bdc49e",
+     "reward": 0.6845971536973365
+    },
+    {
+     "hash": "6ed475d024b0",
+     "reward": 0.6840225148358292
+    },
+    {
+     "hash": "a42ca3002e77",
+     "reward": 0.6492736832231688
+    }
+   ],
+   "usage": {
+    "input_tokens": 47458,
+    "output_tokens": 5715,
+    "cached_tokens": 33500,
+    "cache_write_tokens": 0,
+    "cost": 0.088416
+   }
+  },
+  {
+   "iter": 12,
+   "model": "gpt-6.1-sol",
+   "reasoning_effort": "low",
+   "reasoning": "The strongest policy already uses a useful rolling-horizon LP. This revision retains that structure, increases protection against expensive energy shortages, and adds downstream raw-chip reserves. It also couples fab starts to modeled energy availability so the LP cannot plan chip production while simultaneously accepting fuel shortages. These are proposed improvements; their score has not been measured.",
+   "proposed": [
+    {
+     "hash": "25d6e155b41b",
+     "reward": 0.6886865421584081
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "6ed475d024b0",
+     "reward": 0.6840225148358292
+    },
+    {
+     "hash": "799ea6ba9176",
+     "reward": 0.6864321624501813
+    },
+    {
+     "hash": "ccbc20d1b36c",
+     "reward": 0.6453100287603635
+    }
+   ],
+   "usage": {
+    "input_tokens": 47519,
+    "output_tokens": 5641,
+    "cached_tokens": 0,
+    "cache_write_tokens": 33500,
+    "cost": 0.168198
+   }
+  },
+  {
+   "iter": 13,
+   "model": "gpt-6.1-sol",
+   "reasoning_effort": "low",
+   "reasoning": "The strongest supplied policy uses useful recovery estimates and energy buffers, but its LP can postpone automatic production and overestimate interchangeable fuel segments. This policy retains rolling-horizon optimization, adds stronger upstream energy protection, accounts for queue waiting costs and fleet limits, and encourages production to match the simulator's automatic starts. Announced prohibitions are checked at each edge's predicted transit week rather than only at dispatch.",
+   "proposed": [
+    {
+     "hash": "69ab9689d422",
+     "reward": 0.6904178909002162
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "06040ed398e8",
+     "reward": 0.6838368602356916
+    },
+    {
+     "hash": "25d6e155b41b",
+     "reward": 0.6886865421584081
+    },
+    {
+     "hash": "4415d4b03895",
+     "reward": 0.686340271467811
+    }
+   ],
+   "usage": {
+    "input_tokens": 47830,
+    "output_tokens": 5672,
+    "cached_tokens": 33500,
+    "cache_write_tokens": 0,
+    "cost": 0.08873
+   }
+  },
+  {
+   "iter": 14,
+   "model": "gpt-6.1-sol",
+   "reasoning_effort": "low",
+   "reasoning": "The strongest policy already benefits from longer planning and larger reserves. I retain that approach, add soft terminal fuel reserves to protect the terminal-to-grid dispatch delay, and explicitly constrain duplicate-route fleet usage so the LP does not rely on flows that will be scaled down. Announced prohibitions are checked at each edge's transit week. These changes are candidates for improvement, not measured score claims.",
+   "proposed": [
+    {
+     "hash": "a37ccf53a191",
+     "reward": 0.6849165903319708
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "ccbc20d1b36c",
+     "reward": 0.6453100287603635
+    },
+    {
+     "hash": "06040ed398e8",
+     "reward": 0.6838368602356916
+    },
+    {
+     "hash": "e8bd5c672b73",
+     "reward": 0.6862598929581856
+    }
+   ],
+   "usage": {
+    "input_tokens": 46578,
+    "output_tokens": 4911,
+    "cached_tokens": 33500,
+    "cache_write_tokens": 0,
+    "cost": 0.078616
+   }
+  },
+  {
+   "iter": 15,
+   "model": "gpt-6.1-sol",
+   "reasoning_effort": "low",
+   "reasoning": "The strongest policy uses useful safety stocks, but its energy model penalizes missing fuel twice and fixes fuel consumption independently of actual fab activity. This proposal retains rolling-horizon LP planning and safety stocks while modeling grid fuel segments jointly with base load and fab energy. It also reserves route capacity for existing queued shipments and uses announced closure dates and prohibitions. Performance gains remain to be verified by scoring.",
+   "proposed": [
+    {
+     "hash": "1959ac445960",
+     "reward": 0.6828211219609539
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "25d6e155b41b",
+     "reward": 0.6886865421584081
+    },
+    {
+     "hash": "f3b3e6fdf9b1",
+     "reward": 0.6571124331141563
+    },
+    {
+     "hash": "23d74f353b0f",
+     "reward": 0.6684860843870069
+    }
+   ],
+   "usage": {
+    "input_tokens": 46897,
+    "output_tokens": 5327,
+    "cached_tokens": 33500,
+    "cache_write_tokens": 0,
+    "cost": 0.083414
+   }
+  },
+  {
+   "iter": 16,
+   "model": "gpt-6.1-sol",
+   "reasoning_effort": "low",
+   "reasoning": "The strongest policy already benefits from explicitly scheduling queued cargo. I retain that approach and improve resilience upstream: terminal fuel reserves protect grids against route interruptions, demand forecasts beyond their published horizon revert gradually toward nominal demand, and temporary supply and factory disruptions recover gradually in the planning horizon rather than being assumed permanent. All dispatch decisions still come from a sparse linear program.",
+   "proposed": [
+    {
+     "hash": "7c18ddb8ae4d",
+     "reward": 0.6824493227339142
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "ccbc20d1b36c",
+     "reward": 0.6453100287603635
+    },
+    {
+     "hash": "a42ca3002e77",
+     "reward": 0.6492736832231688
+    },
+    {
+     "hash": "06040ed398e8",
+     "reward": 0.6838368602356916
+    }
+   ],
+   "usage": {
+    "input_tokens": 45815,
+    "output_tokens": 5561,
+    "cached_tokens": 33500,
+    "cache_write_tokens": 0,
+    "cost": 0.08359
+   }
+  },
+  {
+   "iter": 17,
+   "model": "gpt-6.1-sol",
+   "reasoning_effort": "low",
+   "reasoning": "The strongest policy already uses a useful rolling-horizon LP, but it has no explicit reserve at terminals and treats alternative-route fleet capacity as unlimited. This candidate adds modest upstream fuel reserves, enforces shared fleet limits, and retains the stronger grid and chip safety stocks. It also models announced prohibitions consistently for both existing shipments and new dispatches. These changes aim to reduce energy shortages and avoid requesting alternative-route flows that the simulator will clip; improvement is not yet measured.",
+   "proposed": [
+    {
+     "hash": "d78011306aff",
+     "reward": 0.6856004446220723
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "6ed475d024b0",
+     "reward": 0.6840225148358292
+    },
+    {
+     "hash": "4415d4b03895",
+     "reward": 0.686340271467811
+    },
+    {
+     "hash": "7c18ddb8ae4d",
+     "reward": 0.6824493227339142
+    }
+   ],
+   "usage": {
+    "input_tokens": 48095,
+    "output_tokens": 5868,
+    "cached_tokens": 33500,
+    "cache_write_tokens": 0,
+    "cost": 0.09122
+   }
+  }
+ ]
+}

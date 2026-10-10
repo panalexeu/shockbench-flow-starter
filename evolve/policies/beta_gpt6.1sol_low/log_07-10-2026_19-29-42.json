@@ -1,0 +1,742 @@
+{
+ "meta": {
+  "task": "small",
+  "entropy": 2004,
+  "train_episodes": 16,
+  "holdout": "dev",
+  "quick": false,
+  "iters": 24,
+  "alpha_model": false,
+  "alpha": 0.25,
+  "sample_n": 3,
+  "sample_e": 1,
+  "sample_t": 1.0,
+  "lm_t": 1.0,
+  "top_p": 0.98,
+  "policy_dir": null,
+  "postfix": "A good baseline to start from: import numpy as np\n\nclass Agent:\n    def __init__(self, config=None):\n        static = config[\"static\"]  \n        action = config[\"spaces\"][\"action\"]\n        u0 = static[\"edges\"][\"u0\"] \n        self.capacity = np.array([u0[e] for e in static[\"action_slots\"][\"edge\"]], dtype=float)\n        self.override_qty = np.zeros(action[\"override_qty\"][\"shape\"])\n        self.release_mode = np.zeros(action[\"release_mode\"][\"shape\"], dtype=np.int64)  \n        self.rng = np.random.default_rng(config[\"policy_seed\"])\n\n    def act(self, observation):\n        flows = self.capacity * observation[\"action_mask\"]\n        return {\"flows\": flows, \"override_qty\": self.override_qty, \"release_mode\": self.release_mode}",
+  "alpha_reasoning": "low",
+  "beta_reasoning": "low"
+ },
+ "iterations": [
+  {
+   "iter": 0,
+   "reasoning": "Use an inventory-position policy rather than requesting every route's capacity. Infer normal consumption from the public initial pipeline, adjust sink requirements using the forecast and backlog, and account for both in-transit and chokepoint inventory. Allocate replenishment across interchangeable routes using current cost, lead time, closures, and announced prohibitions. This reduces redundant shipments while preserving buffers for disrupted supply chains.",
+   "proposed": [
+    {
+     "hash": "ac0fa0ed6fc2",
+     "reward": 0.06508197587237133
+    }
+   ],
+   "sampled": [],
+   "usage": {
+    "input_tokens": 5000,
+    "output_tokens": 3497,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.035509900000000004
+   }
+  },
+  {
+   "iter": 1,
+   "reasoning": "The existing policy uses useful inventory-position control, but its shared-stock allocation treats all destinations equally and its small buffers leave little protection against supply interruptions. This policy retains nominal-flow inference, adds shortage-value prioritization, increases safety stock selectively, incorporates chokepoint throughput and announced prohibitions into route selection, and avoids treating shipments arriving after the episode as usable inventory.",
+   "proposed": [
+    {
+     "hash": "18206864856f",
+     "reward": -0.03066853666558373
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "ac0fa0ed6fc2",
+     "reward": 0.06508197587237133
+    }
+   ],
+   "usage": {
+    "input_tokens": 7387,
+    "output_tokens": 2707,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0323839
+   }
+  },
+  {
+   "iter": 2,
+   "reasoning": "The stronger policy uses sensible inventory targets, but counts all queued cargo as immediately useful supply. During closures or pending sanctions, that can suppress replacement shipments for weeks. This revision discounts delayed or threatened pipeline inventory, evaluates inventory separately for each route's replenishment horizon, and retains the stronger policy's relatively lean buffers. It also respects shared dispatch capacity, observed-value masks, and horizon limits.",
+   "proposed": [
+    {
+     "hash": "c627a253c7ae",
+     "reward": 0.08384326261533771
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "ac0fa0ed6fc2",
+     "reward": 0.06508197587237133
+    },
+    {
+     "hash": "18206864856f",
+     "reward": -0.03066853666558373
+    }
+   ],
+   "usage": {
+    "input_tokens": 9663,
+    "output_tokens": 2891,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0387759
+   }
+  },
+  {
+   "iter": 3,
+   "reasoning": "The strongest policy already accounts for arrival times, but sizes every destination's order using only its preferred route. When that route lacks stock or capacity, slower alternatives can be under-ordered. This revision uses route-specific coverage targets, retains time-weighted pipeline accounting, and adds bounded pre-positioning before announced prohibitions. Slightly larger safety buffers aim to reduce shortages without the aggressive inventory expansion of the lower-scoring policy.",
+   "proposed": [
+    {
+     "hash": "4790aa42a73a",
+     "reward": 0.07634328438227823
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "c627a253c7ae",
+     "reward": 0.08384326261533771
+    },
+    {
+     "hash": "ac0fa0ed6fc2",
+     "reward": 0.06508197587237133
+    },
+    {
+     "hash": "18206864856f",
+     "reward": -0.03066853666558373
+    }
+   ],
+   "usage": {
+    "input_tokens": 12156,
+    "output_tokens": 2977,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0446219
+   }
+  },
+  {
+   "iter": 4,
+   "reasoning": "The strongest policy already accounts for shipment arrival times and disrupted routes, but its small inventory buffers leave little protection against supply interruptions. This proposal increases safety stocks, adds moderate warning-driven buffers, and compares routes using their own replenishment horizons while penalizing slower alternatives. It also avoids dispatches that cannot arrive before the episode ends. These changes are intended to reduce shortage costs without indiscriminately filling every route; their benefit still needs evaluation.",
+   "proposed": [
+    {
+     "hash": "a5cddacff4d3",
+     "reward": 0.46350509173254567
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "c627a253c7ae",
+     "reward": 0.08384326261533771
+    },
+    {
+     "hash": "ac0fa0ed6fc2",
+     "reward": 0.06508197587237133
+    },
+    {
+     "hash": "4790aa42a73a",
+     "reward": 0.07634328438227823
+    }
+   ],
+   "usage": {
+    "input_tokens": 12496,
+    "output_tokens": 3143,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0469619
+   }
+  },
+  {
+   "iter": 5,
+   "reasoning": "The strongest policy benefits substantially from larger inventory buffers and route-specific deficits. This candidate preserves that structure while increasing safety stock moderately, aiming to reduce shortages during transport delays and production disruptions. It also adds a small pre-prohibition buffer when a shipment can still clear the announced restriction. These changes require evaluation; a higher score is not guaranteed.",
+   "proposed": [
+    {
+     "hash": "089827a9faac",
+     "reward": 0.535824039827028
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "a5cddacff4d3",
+     "reward": 0.46350509173254567
+    },
+    {
+     "hash": "c627a253c7ae",
+     "reward": 0.08384326261533771
+    },
+    {
+     "hash": "4790aa42a73a",
+     "reward": 0.07634328438227823
+    }
+   ],
+   "usage": {
+    "input_tokens": 12791,
+    "output_tokens": 3162,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.047741900000000004
+   }
+  },
+  {
+   "iter": 6,
+   "reasoning": "The strongest policy improved substantially with larger safety stocks. This candidate extends that approach moderately, while retaining disruption-aware transit accounting and avoiding the low-buffer and persistent-graph-cache choices of the weaker policies. It also reduces ordering near the episode end for intermediate destinations, using their shortest downstream transport time, and discounts unreliable routes when allocating scarce stock. These changes are hypotheses to evaluate, not guaranteed score improvements.",
+   "proposed": [
+    {
+     "hash": "c5f5a5ca2944",
+     "reward": 0.5588963247506619
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "089827a9faac",
+     "reward": 0.535824039827028
+    },
+    {
+     "hash": "a5cddacff4d3",
+     "reward": 0.46350509173254567
+    },
+    {
+     "hash": "4790aa42a73a",
+     "reward": 0.07634328438227823
+    }
+   ],
+   "usage": {
+    "input_tokens": 13046,
+    "output_tokens": 3240,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0490319
+   }
+  },
+  {
+   "iter": 7,
+   "reasoning": "The strongest policy improved substantially with larger inventory buffers and end-of-horizon trimming. This candidate extends that approach with moderately larger buffers, while retaining disruption-aware routing and pipeline accounting. It also preserves the last observed forecast during blackouts rather than interpreting missing demand as zero. These changes are hypotheses to evaluate, not a guaranteed score improvement.",
+   "proposed": [
+    {
+     "hash": "88e464ea9430",
+     "reward": 0.5789558501321493
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "089827a9faac",
+     "reward": 0.535824039827028
+    },
+    {
+     "hash": "c5f5a5ca2944",
+     "reward": 0.5588963247506619
+    },
+    {
+     "hash": "a5cddacff4d3",
+     "reward": 0.46350509173254567
+    }
+   ],
+   "usage": {
+    "input_tokens": 13292,
+    "output_tokens": 3255,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0496739
+   }
+  },
+  {
+   "iter": 8,
+   "reasoning": "The strongest policy benefits from larger safety stocks and end-of-horizon shipment limits. This candidate increases reserves modestly, retains disruption-aware arrival accounting, and incorporates route cost directly into dispatch priority so small urgency differences do not unnecessarily favor expensive alternatives. It also preserves previously observed graph and demand values during blackouts rather than reverting immediately to nominal conditions.",
+   "proposed": [
+    {
+     "hash": "7daabe86f26a",
+     "reward": 0.5660003292987731
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "a5cddacff4d3",
+     "reward": 0.46350509173254567
+    },
+    {
+     "hash": "c5f5a5ca2944",
+     "reward": 0.5588963247506619
+    },
+    {
+     "hash": "089827a9faac",
+     "reward": 0.535824039827028
+    }
+   ],
+   "usage": {
+    "input_tokens": 13292,
+    "output_tokens": 3265,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0497739
+   }
+  },
+  {
+   "iter": 9,
+   "reasoning": "The strongest policy benefits from larger safety stocks and cached observations. This candidate increases protection moderately, estimates chokepoint congestion from queued cargo and observed throughput, and accounts for that delay when valuing both new routes and existing shipments. It also penalizes unreliable dispatches more strongly. These are proposed improvements; their score still needs evaluation.",
+   "proposed": [
+    {
+     "hash": "1fa087eeff92",
+     "reward": 0.6032605377207964
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "c5f5a5ca2944",
+     "reward": 0.5588963247506619
+    },
+    {
+     "hash": "7daabe86f26a",
+     "reward": 0.5660003292987731
+    },
+    {
+     "hash": "089827a9faac",
+     "reward": 0.535824039827028
+    }
+   ],
+   "usage": {
+    "input_tokens": 13507,
+    "output_tokens": 3563,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0531839
+   }
+  },
+  {
+   "iter": 10,
+   "reasoning": "The strongest policy benefits from larger safety stocks and congestion-aware routing. This proposal increases reserves modestly, preserves blackout caching, and uses a common destination planning horizon so slow alternatives do not receive artificial priority merely because their lead times inflate their inventory targets. It also weights imminent shortages when selecting routes and shares first-edge capacity across commodities.",
+   "proposed": [
+    {
+     "hash": "3e2b4f1bdfe5",
+     "reward": 0.6241711689398312
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "c5f5a5ca2944",
+     "reward": 0.5588963247506619
+    },
+    {
+     "hash": "1fa087eeff92",
+     "reward": 0.6032605377207964
+    },
+    {
+     "hash": "88e464ea9430",
+     "reward": 0.5789558501321493
+    }
+   ],
+   "usage": {
+    "input_tokens": 13882,
+    "output_tokens": 3574,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0540439
+   }
+  },
+  {
+   "iter": 11,
+   "reasoning": "The strongest policy benefits from larger safety stocks and congestion-aware routing. This proposal modestly increases reserves and improves expedited-route selection: urgency uses stock plus shipments arriving before the normal route, rather than on-hand stock alone. This should reduce unnecessary air freight while prioritizing genuinely imminent shortages. Performance remains to be measured.",
+   "proposed": [
+    {
+     "hash": "d0b4449e1a1a",
+     "reward": 0.6260749673107283
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "3e2b4f1bdfe5",
+     "reward": 0.6241711689398312
+    },
+    {
+     "hash": "7daabe86f26a",
+     "reward": 0.5660003292987731
+    },
+    {
+     "hash": "4790aa42a73a",
+     "reward": 0.07634328438227823
+    }
+   ],
+   "usage": {
+    "input_tokens": 13702,
+    "output_tokens": 3696,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0549039
+   }
+  },
+  {
+   "iter": 12,
+   "reasoning": "The strongest policy benefits from larger inventory buffers and congestion-aware routing. This candidate increases resilience modestly, discounts unreliable routes more strongly, and limits expensive expedited shipments to projected near-term shortages rather than using them to fill the entire safety-stock target. It also accounts for downstream lead times when winding down replenishment. These changes are hypotheses to test, not a guaranteed score improvement.",
+   "proposed": [
+    {
+     "hash": "9025bf1caec7",
+     "reward": 0.6265535883538647
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "7daabe86f26a",
+     "reward": 0.5660003292987731
+    },
+    {
+     "hash": "d0b4449e1a1a",
+     "reward": 0.6260749673107283
+    },
+    {
+     "hash": "a5cddacff4d3",
+     "reward": 0.46350509173254567
+    }
+   ],
+   "usage": {
+    "input_tokens": 13869,
+    "output_tokens": 3777,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.056047900000000005
+   }
+  },
+  {
+   "iter": 13,
+   "reasoning": "The strongest policy benefits from larger safety stocks and selective expedited shipping. This proposal retains that structure, slightly increases disruption reserves, includes destination-region warnings, and avoids basing replenishment timing on routes whose sources have no available stock. Expedited quantities are limited to projected near-term shortages rather than the full safety-stock target.",
+   "proposed": [
+    {
+     "hash": "4a5da721ec46",
+     "reward": 0.6316797205906179
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "88e464ea9430",
+     "reward": 0.5789558501321493
+    },
+    {
+     "hash": "9025bf1caec7",
+     "reward": 0.6265535883538647
+    },
+    {
+     "hash": "3e2b4f1bdfe5",
+     "reward": 0.6241711689398312
+    }
+   ],
+   "usage": {
+    "input_tokens": 14442,
+    "output_tokens": 3850,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0579239
+   }
+  },
+  {
+   "iter": 14,
+   "reasoning": "The strongest policy already benefits from inventory buffers and congestion estimates. This revision keeps those features but uses a common inventory target across alternative routes, preventing longer routes from creating artificial extra demand. It also accounts for stockouts before a shipment arrives when selecting routes, and penalizes unreliable routes more strongly. These are proposed improvements, not measured results.",
+   "proposed": [
+    {
+     "hash": "b0cfa91e7cdf",
+     "reward": 0.6201425247345318
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "a5cddacff4d3",
+     "reward": 0.46350509173254567
+    },
+    {
+     "hash": "88e464ea9430",
+     "reward": 0.5789558501321493
+    },
+    {
+     "hash": "1fa087eeff92",
+     "reward": 0.6032605377207964
+    }
+   ],
+   "usage": {
+    "input_tokens": 13703,
+    "output_tokens": 3608,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0540259
+   }
+  },
+  {
+   "iter": 15,
+   "reasoning": "The strongest policy benefits from substantial safety stock and explicit estimates of disrupted arrivals. This candidate retains that structure, increases protection modestly, and makes route selection more cost-sensitive when inventory is healthy while retaining emergency fast-route dispatch. It also corrects fractional forecast horizons and accounts for reduced chokepoint throughput when estimating queue delays. These changes are hypotheses to evaluate, not a guaranteed score improvement.",
+   "proposed": [
+    {
+     "hash": "c738a6c7f7fb",
+     "reward": 0.6322902937452972
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "4a5da721ec46",
+     "reward": 0.6316797205906179
+    },
+    {
+     "hash": "089827a9faac",
+     "reward": 0.535824039827028
+    },
+    {
+     "hash": "88e464ea9430",
+     "reward": 0.5789558501321493
+    }
+   ],
+   "usage": {
+    "input_tokens": 14041,
+    "output_tokens": 3885,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0574719
+   }
+  },
+  {
+   "iter": 16,
+   "reasoning": "The strongest policy improved substantially with larger safety stocks and downstream-aware end-of-horizon limits. This candidate extends that approach with moderately larger buffers, while reducing unnecessary expensive-route use: route-specific inventory targets are retained, but extra lead time no longer creates extra dispatch priority. It also remembers observed network conditions during blackouts rather than immediately reverting to nominal capacities and open chokepoints. These are proposed improvements, not measured score gains.",
+   "proposed": [
+    {
+     "hash": "8cb3c091b562",
+     "reward": 0.5697598008474427
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "089827a9faac",
+     "reward": 0.535824039827028
+    },
+    {
+     "hash": "c627a253c7ae",
+     "reward": 0.08384326261533771
+    },
+    {
+     "hash": "c5f5a5ca2944",
+     "reward": 0.5588963247506619
+    }
+   ],
+   "usage": {
+    "input_tokens": 13102,
+    "output_tokens": 3335,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.050093900000000004
+   }
+  },
+  {
+   "iter": 17,
+   "reasoning": "The strongest policy benefits from larger safety stocks, but its fast-route urgency can send an entire replenishment deficit by expensive transport. This candidate increases disruption reserves modestly while limiting expedited quantities to projected near-term shortages. It retains route-aware pipeline accounting, congestion estimates, sanctions lookahead, and horizon tapering. The score improvement remains to be tested.",
+   "proposed": [
+    {
+     "hash": "56a3700b80f2",
+     "reward": 0.6256880374728886
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "1fa087eeff92",
+     "reward": 0.6032605377207964
+    },
+    {
+     "hash": "d0b4449e1a1a",
+     "reward": 0.6260749673107283
+    },
+    {
+     "hash": "8cb3c091b562",
+     "reward": 0.5697598008474427
+    }
+   ],
+   "usage": {
+    "input_tokens": 14361,
+    "output_tokens": 3812,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0573819
+   }
+  },
+  {
+   "iter": 18,
+   "reasoning": "The strongest policy benefits from larger reserves and congestion-aware routing. This candidate retains that design, increases reserves moderately, and limits faster, more expensive alternatives to projected shortages before the economical route arrives. This aims to improve disruption resilience without using premium transport to fill an entire long-term inventory target. Performance still needs evaluation.",
+   "proposed": [
+    {
+     "hash": "907c28f0dd8c",
+     "reward": 0.6258901404259872
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "88e464ea9430",
+     "reward": 0.5789558501321493
+    },
+    {
+     "hash": "d0b4449e1a1a",
+     "reward": 0.6260749673107283
+    },
+    {
+     "hash": "8cb3c091b562",
+     "reward": 0.5697598008474427
+    }
+   ],
+   "usage": {
+    "input_tokens": 14114,
+    "output_tokens": 3802,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0567879
+   }
+  },
+  {
+   "iter": 19,
+   "reasoning": "The strongest policy benefits from substantial safety stocks and selective fast-route use. This candidate increases disruption reserves moderately, counts near-horizon arrivals more accurately during the final weeks, and limits premium transport to projected shortages rather than using it to build large reserves. It also avoids dispatching on routes already known to become prohibited before traversal. These changes are hypotheses to test, not a guaranteed score improvement.",
+   "proposed": [
+    {
+     "hash": "51543cccad3b",
+     "reward": 0.6214148152458892
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "b0cfa91e7cdf",
+     "reward": 0.6201425247345318
+    },
+    {
+     "hash": "c738a6c7f7fb",
+     "reward": 0.6322902937452972
+    },
+    {
+     "hash": "089827a9faac",
+     "reward": 0.535824039827028
+    }
+   ],
+   "usage": {
+    "input_tokens": 14409,
+    "output_tokens": 3891,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.058267900000000004
+   }
+  },
+  {
+   "iter": 20,
+   "reasoning": "The strongest policy benefits from substantially larger safety stocks than the earlier versions. I propose extending that trend moderately, while retaining congestion-aware routing and limiting expensive expedited shipments to projected shortages. The new policy also prioritizes routes with available origin inventory and keeps the terminal inventory target bounded by remaining demand. This is an untested candidate, not a guaranteed score improvement.",
+   "proposed": [
+    {
+     "hash": "619bf016f2b5",
+     "reward": 0.6317515163383599
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "c738a6c7f7fb",
+     "reward": 0.6322902937452972
+    },
+    {
+     "hash": "c5f5a5ca2944",
+     "reward": 0.5588963247506619
+    },
+    {
+     "hash": "d0b4449e1a1a",
+     "reward": 0.6260749673107283
+    }
+   ],
+   "usage": {
+    "input_tokens": 14609,
+    "output_tokens": 3919,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.058947900000000004
+   }
+  },
+  {
+   "iter": 21,
+   "reasoning": "The strongest policies already handle disruption timing and inventory position well. This candidate preserves that structure while making premium-route use more selective: expensive alternatives replenish only projected near-term shortages rather than the entire safety-stock target. It also uses an intermediate inventory buffer, adds shortage-penalty-aware sink prioritization, and improves end-of-horizon forecast accounting. These are proposed improvements, not measured results.",
+   "proposed": [
+    {
+     "hash": "0928f6ffa095",
+     "reward": 0.6299686053731679
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "619bf016f2b5",
+     "reward": 0.6317515163383599
+    },
+    {
+     "hash": "4a5da721ec46",
+     "reward": 0.6316797205906179
+    },
+    {
+     "hash": "ac0fa0ed6fc2",
+     "reward": 0.06508197587237133
+    }
+   ],
+   "usage": {
+    "input_tokens": 14253,
+    "output_tokens": 4048,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0595259
+   }
+  },
+  {
+   "iter": 22,
+   "reasoning": "The strongest policy benefits from larger safety stocks and common inventory targets across alternative routes. This candidate modestly increases those buffers, accounts for shipments arriving before the normal route when deciding whether to expedite, and includes destination-region warnings. It retains cached observations, congestion estimates, prohibition timing, and horizon-aware inventory limits. These changes are proposals for evaluation, not a verified score improvement.",
+   "proposed": [
+    {
+     "hash": "f92eb3ffd22e",
+     "reward": 0.6287993011254351
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "c5f5a5ca2944",
+     "reward": 0.5588963247506619
+    },
+    {
+     "hash": "b0cfa91e7cdf",
+     "reward": 0.6201425247345318
+    },
+    {
+     "hash": "3e2b4f1bdfe5",
+     "reward": 0.6241711689398312
+    }
+   ],
+   "usage": {
+    "input_tokens": 14253,
+    "output_tokens": 3648,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0555259
+   }
+  },
+  {
+   "iter": 23,
+   "reasoning": "The strongest policy benefits from larger safety stocks and congestion-aware routing. This candidate increases protection moderately, while preserving its cost-sensitive route selection. It also separates emergency air-freight limits from destination-wide replenishment deficits, so a capped fast route does not inadvertently prevent cheaper routes from supplying the remaining need. The policy remains dimension-independent and uses observed disruption announcements, forecasts, queues, and work in process.",
+   "proposed": [
+    {
+     "hash": "574fac9a37e4",
+     "reward": 0.626954912450044
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "619bf016f2b5",
+     "reward": 0.6317515163383599
+    },
+    {
+     "hash": "56a3700b80f2",
+     "reward": 0.6256880374728886
+    },
+    {
+     "hash": "8cb3c091b562",
+     "reward": 0.5697598008474427
+    }
+   ],
+   "usage": {
+    "input_tokens": 14764,
+    "output_tokens": 3901,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0590779
+   }
+  }
+ ]
+}

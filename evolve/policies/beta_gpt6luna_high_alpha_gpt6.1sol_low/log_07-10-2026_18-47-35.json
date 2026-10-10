@@ -1,0 +1,822 @@
+{
+ "meta": {
+  "task": "small",
+  "entropy": 2004,
+  "train_episodes": 16,
+  "holdout": "dev",
+  "quick": false,
+  "iters": 24,
+  "alpha_model": true,
+  "alpha": 0.25,
+  "sample_n": 4,
+  "sample_e": 2,
+  "sample_t": 1.0,
+  "lm_t": 1.0,
+  "top_p": 0.98,
+  "policy_dir": null,
+  "postfix": "A good baseline to start from: import numpy as np\n\nclass Agent:\n    def __init__(self, config=None):\n        static = config[\"static\"]  \n        action = config[\"spaces\"][\"action\"]\n        u0 = static[\"edges\"][\"u0\"] \n        self.capacity = np.array([u0[e] for e in static[\"action_slots\"][\"edge\"]], dtype=float)\n        self.override_qty = np.zeros(action[\"override_qty\"][\"shape\"])\n        self.release_mode = np.zeros(action[\"release_mode\"][\"shape\"], dtype=np.int64)  \n        self.rng = np.random.default_rng(config[\"policy_seed\"])\n\n    def act(self, observation):\n        flows = self.capacity * observation[\"action_mask\"]\n        return {\"flows\": flows, \"override_qty\": self.override_qty, \"release_mode\": self.release_mode}",
+  "alpha_reasoning": "low",
+  "beta_reasoning": "high"
+ },
+ "iterations": [
+  {
+   "iter": 0,
+   "reasoning": "Start with a capacity-aware inventory policy rather than requesting every route at full capacity. It consolidates duplicate routes, accounts for stock and cargo already in transit, and prefers inexpensive open routes. Demand sinks receive forecast-based replenishment; intermediate facilities retain larger operating buffers. Route selection uses current closures, tariffs, lead times, and announced prohibitions, while retaining the default chokepoint release behavior.",
+   "proposed": [
+    {
+     "hash": "7a3bdc65454a",
+     "reward": 0.47785280823071163
+    }
+   ],
+   "sampled": [],
+   "usage": {
+    "input_tokens": 5000,
+    "output_tokens": 2607,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.026609900000000002
+   }
+  },
+  {
+   "iter": 1,
+   "reasoning": "The supplied policy uses static edge capacities for some decisions, counts all in-transit stock as immediately available, and does not account for shared chokepoint throughput or shortage-penalty differences when prioritizing routes. This replacement uses current capacities and chokepoint limits, tracks projected arrivals by week, prioritizes higher-penalty demand, and sizes dispatches against forecast demand or intermediate-node buffers. It reads dimensions and indices from the provided configuration so it can run across variants.",
+   "proposed": [
+    {
+     "hash": "e9e02ed570e2",
+     "reward": 0.4989654569222609
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "7a3bdc65454a",
+     "reward": 0.47785280823071163
+    }
+   ],
+   "usage": {
+    "input_tokens": 6888,
+    "output_tokens": 10463,
+    "cached_tokens": 0,
+    "cache_write_tokens": 4979,
+    "cost": 0.006044775
+   }
+  },
+  {
+   "iter": 2,
+   "reasoning": "The strongest provided policy already accounts for route costs, capacity, chokepoints, current stock, forecasts, and goods in transit. A key weakness is that it calculates each route\u2019s planned need before dispatching anything: when multiple routes can serve the same destination, a later route can still ship its original planned amount after an earlier route has already covered the need. This change recalculates need during allocation, using the updated projection after every dispatch. It retains the existing risk checks and inventory projections, and makes the route-cost comparison deterministic with lead time as a tie-breaker.",
+   "proposed": [
+    {
+     "hash": "e0c2ffb7bdd2",
+     "reward": 0.49604062845962676
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "e9e02ed570e2",
+     "reward": 0.4989654569222609
+    },
+    {
+     "hash": "7a3bdc65454a",
+     "reward": 0.47785280823071163
+    }
+   ],
+   "usage": {
+    "input_tokens": 10740,
+    "output_tokens": 8300,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0047758900000000005
+   }
+  },
+  {
+   "iter": 3,
+   "reasoning": "The leading policy is already a capable greedy planner. This version preserves its route, capacity, and future-arrival logic while addressing two weaknesses: projected stock was not reduced after dispatch, which could suppress needed replenishment, and intermediate routes received a fixed low priority even when they served high-penalty sinks. It also checks the explicit prohibition table during action-mask blackout weeks, avoiding plans that would be dropped at execution.",
+   "proposed": [
+    {
+     "hash": "65e065ea2f54",
+     "reward": 0.49949709580513546
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "e9e02ed570e2",
+     "reward": 0.4989654569222609
+    },
+    {
+     "hash": "7a3bdc65454a",
+     "reward": 0.47785280823071163
+    },
+    {
+     "hash": "e0c2ffb7bdd2",
+     "reward": 0.49604062845962676
+    }
+   ],
+   "usage": {
+    "input_tokens": 14588,
+    "output_tokens": 9101,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.005561190000000001
+   }
+  },
+  {
+   "iter": 4,
+   "reasoning": "The strongest policies already use inventory and transit projections effectively. This proposal retains that structure while improving three weaknesses: forecasts shorter than route lead times are extrapolated rather than capped; queued cargo behind closures is not treated as immediately available; and safety buffers respond modestly to relevant early warnings. Requirements are recomputed after each allocation, with shared edge and chokepoint limits preserved. Performance improvements remain to be tested.",
+   "proposed": [
+    {
+     "hash": "e44a28268aad",
+     "reward": 0.4959246178916349
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "e9e02ed570e2",
+     "reward": 0.4989654569222609
+    },
+    {
+     "hash": "e0c2ffb7bdd2",
+     "reward": 0.49604062845962676
+    },
+    {
+     "hash": "65e065ea2f54",
+     "reward": 0.49949709580513546
+    },
+    {
+     "hash": "7a3bdc65454a",
+     "reward": 0.47785280823071163
+    }
+   ],
+   "usage": {
+    "input_tokens": 18947,
+    "output_tokens": 3354,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0619739
+   }
+  },
+  {
+   "iter": 5,
+   "reasoning": "The strongest supplied policies use local inventory targets, but their greedy route selection can overlook multi-leg paths to actual demand and can over- or under-value intermediate stock. This policy keeps a conservative intermediate-stock buffer while also tracing low-cost, currently feasible paths from available inventory to sinks. It accounts for sink stock, forecasts, backlog, and known arrivals when estimating need, and tracks shared edge and chokepoint capacity as it dispatches.",
+   "proposed": [
+    {
+     "hash": "5ea86ed4fe66",
+     "reward": 0.4959127949022634
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "e9e02ed570e2",
+     "reward": 0.4989654569222609
+    },
+    {
+     "hash": "65e065ea2f54",
+     "reward": 0.49949709580513546
+    },
+    {
+     "hash": "e44a28268aad",
+     "reward": 0.4959246178916349
+    },
+    {
+     "hash": "e0c2ffb7bdd2",
+     "reward": 0.49604062845962676
+    }
+   ],
+   "usage": {
+    "input_tokens": 19962,
+    "output_tokens": 9564,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.00633009
+   }
+  },
+  {
+   "iter": 6,
+   "reasoning": "The provided policies use useful inventory and route information, but their greedy decisions can overlook explicit prohibitions during mask blackouts, pending prohibitions, and the value of choosing a complete low-cost route to a sink. This policy combines those checks with demand-aware shortest paths, projected arrivals, shared edge/chokepoint capacity accounting, and a conservative replenishment fallback for intermediate nodes. It also uses warning scores to mildly favor safer routes and extend demand coverage when a route is exposed.",
+   "proposed": [
+    {
+     "hash": "459162279f44",
+     "reward": 0.43541571048092975
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "5ea86ed4fe66",
+     "reward": 0.4959127949022634
+    },
+    {
+     "hash": "65e065ea2f54",
+     "reward": 0.49949709580513546
+    },
+    {
+     "hash": "e44a28268aad",
+     "reward": 0.4959246178916349
+    },
+    {
+     "hash": "e0c2ffb7bdd2",
+     "reward": 0.49604062845962676
+    }
+   ],
+   "usage": {
+    "input_tokens": 20268,
+    "output_tokens": 11528,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.007342690000000001
+   }
+  },
+  {
+   "iter": 7,
+   "reasoning": "The supplied policies are strong greedy baselines, but they can send goods to intermediate nodes without tracing the route onward to a sink, and their planning can overfill a sink when several sources target it in the same week. This policy plans legal, capacity-feasible routes from currently available stock to sinks, ranks them by transport cost relative to shortage penalty, and reserves planned sink arrivals to reduce duplicate shipments. It also accounts for stock, supply, pipeline shipments, WIP, and chokepoint queue lots when estimating future coverage; it uses useful intermediate-node buffers as a secondary objective. Prohibitions, announced future prohibitions, closures, and shared edge/chokepoint capacities are considered. The policy deliberately leaves release overrides at their default rather than risk misrouting queued cargo.",
+   "proposed": [
+    {
+     "hash": "605087f3aa48",
+     "reward": -2.108726119187684
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "e9e02ed570e2",
+     "reward": 0.4989654569222609
+    },
+    {
+     "hash": "65e065ea2f54",
+     "reward": 0.49949709580513546
+    },
+    {
+     "hash": "e0c2ffb7bdd2",
+     "reward": 0.49604062845962676
+    },
+    {
+     "hash": "5ea86ed4fe66",
+     "reward": 0.4959127949022634
+    }
+   ],
+   "usage": {
+    "input_tokens": 21216,
+    "output_tokens": 11805,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0075759899999999995
+   }
+  },
+  {
+   "iter": 8,
+   "reasoning": "The strongest policy uses local inventory targets rather than speculative end-to-end reservations. I retain that approach, but remove the forecast-length cap that can understock long sea routes, account for announced closure end dates when projecting queued cargo, and prioritize replenishment by destination coverage as well as cost. Intermediate buffers remain generous enough to support automatic production. These changes are intended to improve resilience without relying on uncertain warnings or hard-coded Small dimensions.",
+   "proposed": [
+    {
+     "hash": "d17430ca4973",
+     "reward": 0.5384263474491618
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "e0c2ffb7bdd2",
+     "reward": 0.49604062845962676
+    },
+    {
+     "hash": "5ea86ed4fe66",
+     "reward": 0.4959127949022634
+    },
+    {
+     "hash": "65e065ea2f54",
+     "reward": 0.49949709580513546
+    },
+    {
+     "hash": "459162279f44",
+     "reward": 0.43541571048092975
+    }
+   ],
+   "usage": {
+    "input_tokens": 22936,
+    "output_tokens": 3128,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0676919
+   }
+  },
+  {
+   "iter": 9,
+   "reasoning": "The strongest example already has a useful route-level greedy allocator, but it ranks routes mostly by static cost and sink priority. This version retains its capacity, inventory, pipeline, and pending-prohibition checks while making priority respond to the size and urgency of each deficit. It also uses warning scores as a modest signal to build additional coverage and to prefer less exposed routes, rather than treating noisy warnings as certain disruptions.",
+   "proposed": [
+    {
+     "hash": "42234a514374",
+     "reward": 0.5389396075457594
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "e44a28268aad",
+     "reward": 0.4959246178916349
+    },
+    {
+     "hash": "7a3bdc65454a",
+     "reward": 0.47785280823071163
+    },
+    {
+     "hash": "d17430ca4973",
+     "reward": 0.5384263474491618
+    },
+    {
+     "hash": "e9e02ed570e2",
+     "reward": 0.4989654569222609
+    }
+   ],
+   "usage": {
+    "input_tokens": 16338,
+    "output_tokens": 7200,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.00478569
+   }
+  },
+  {
+   "iter": 10,
+   "reasoning": "The strongest supplied policy uses end-to-end paths to prioritize shipments that can satisfy sink demand, but it considers only one shortest path per source\u2013sink pair. If that path\u2019s first route has limited capacity, it can leave demand uncovered even when a usable alternative exists. This policy considers each usable first route separately, finds its cheapest continuation to a sink, and allocates current stock and shared edge/chokepoint capacity greedily by transport cost relative to shortage penalty. It also accounts for current stock, in-transit shipments, WIP, queued lots, forecasts, tariffs, warnings, and pending prohibitions. It leaves tanker releases at their default rather than risking malformed or poorly targeted overrides.",
+   "proposed": [
+    {
+     "hash": "912b153062eb",
+     "reward": -2.107804432305058
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "e0c2ffb7bdd2",
+     "reward": 0.49604062845962676
+    },
+    {
+     "hash": "42234a514374",
+     "reward": 0.5389396075457594
+    },
+    {
+     "hash": "459162279f44",
+     "reward": 0.43541571048092975
+    },
+    {
+     "hash": "7a3bdc65454a",
+     "reward": 0.47785280823071163
+    }
+   ],
+   "usage": {
+    "input_tokens": 20423,
+    "output_tokens": 12288,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.007738190000000001
+   }
+  },
+  {
+   "iter": 11,
+   "reasoning": "The strongest supplied policy scores about 0.538. I\u2019d retain its demand-aware, capacity-limited routing, while making masked network observations less likely to be mistaken for a clear route, modestly preferring safer alternatives when warnings are high, and avoiding dispatches that cannot arrive before the horizon ends. These are targeted changes rather than a wholesale rewrite; their impact still needs evaluation on the task\u2019s scenarios.",
+   "proposed": [
+    {
+     "hash": "e08614f2a90f",
+     "reward": 0.4949796506031714
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "e0c2ffb7bdd2",
+     "reward": 0.49604062845962676
+    },
+    {
+     "hash": "e44a28268aad",
+     "reward": 0.4959246178916349
+    },
+    {
+     "hash": "d17430ca4973",
+     "reward": 0.5384263474491618
+    },
+    {
+     "hash": "e9e02ed570e2",
+     "reward": 0.4989654569222609
+    }
+   ],
+   "usage": {
+    "input_tokens": 18297,
+    "output_tokens": 8328,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.00554559
+   }
+  },
+  {
+   "iter": 12,
+   "reasoning": "The strongest policy already handles shared capacities and duplicate replenishment well. This proposal retains those ideas while making arrival timing more explicit: forecast horizons extend beyond the published window, queued cargo at closed chokepoints is delayed rather than treated as immediately available, and lost-sales demand before a shipment arrives is not counted as recoverable demand. It also processes downstream dispatches before upstream replenishment so intermediate inventory targets reflect stock actually consumed by the current plan. These changes are hypotheses for evaluation, not measured improvements.",
+   "proposed": [
+    {
+     "hash": "9448e9b54887",
+     "reward": 0.49767556783699146
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "65e065ea2f54",
+     "reward": 0.49949709580513546
+    },
+    {
+     "hash": "e9e02ed570e2",
+     "reward": 0.4989654569222609
+    },
+    {
+     "hash": "7a3bdc65454a",
+     "reward": 0.47785280823071163
+    },
+    {
+     "hash": "e0c2ffb7bdd2",
+     "reward": 0.49604062845962676
+    }
+   ],
+   "usage": {
+    "input_tokens": 18947,
+    "output_tokens": 3411,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0625439
+   }
+  },
+  {
+   "iter": 13,
+   "reasoning": "The provided policies all rely on greedy dispatch, but can over- or under-order at sinks because they compare stock against a short, fixed demand window and do not consistently account for the expected arrival time. This policy uses live, legal routes to estimate the cheapest downstream path to a demand sink, accounts for stock and projected arrivals when estimating replenishment need, and limits transfer-node buffers to a few weeks of estimated throughput. It also tracks shared edge and chokepoint capacity while allocating shipments. It avoids optional solver dependencies and derives all dimensions from the task configuration.",
+   "proposed": [
+    {
+     "hash": "80bc2f7f413e",
+     "reward": -2.1085680129591076
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "65e065ea2f54",
+     "reward": 0.49949709580513546
+    },
+    {
+     "hash": "5ea86ed4fe66",
+     "reward": 0.4959127949022634
+    },
+    {
+     "hash": "9448e9b54887",
+     "reward": 0.49767556783699146
+    },
+    {
+     "hash": "e0c2ffb7bdd2",
+     "reward": 0.49604062845962676
+    }
+   ],
+   "usage": {
+    "input_tokens": 20282,
+    "output_tokens": 10495,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.006827590000000001
+   }
+  },
+  {
+   "iter": 14,
+   "reasoning": "The strongest supplied policies use local greedy routing, which can ship inventory toward a transfer node without checking whether that stock has a viable, valuable route to demand. This policy instead plans shortest legal routes from available inventory to demand sinks, ranks them by full-path freight, lead time, and shortage penalty, and reserves demand as it dispatches so multiple sources do not independently target the same shortfall in one week. It also accounts for pipeline, work in process, queued lots, current capacities, and announced prohibitions, while retaining a limited buffer-building fallback for commodities or nodes not connected to a modeled sink.",
+   "proposed": [
+    {
+     "hash": "51e2c75617a1",
+     "reward": 0.48913787594283203
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "5ea86ed4fe66",
+     "reward": 0.4959127949022634
+    },
+    {
+     "hash": "e08614f2a90f",
+     "reward": 0.4949796506031714
+    },
+    {
+     "hash": "d17430ca4973",
+     "reward": 0.5384263474491618
+    },
+    {
+     "hash": "42234a514374",
+     "reward": 0.5389396075457594
+    }
+   ],
+   "usage": {
+    "input_tokens": 19759,
+    "output_tokens": 10616,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.00683579
+   }
+  },
+  {
+   "iter": 15,
+   "reasoning": "The strongest supplied policy already uses demand forecasts and end-to-end paths, but its greedy dispatch can misallocate shared capacity and it does not explicitly account for current prohibitions during mask blackouts. This replacement builds a legal, cost-weighted route graph each week, projects stock and inbound shipments, and greedily assigns available goods to forecast demand sinks. It sends only the first route of a selected path, while reserving projected sink coverage for the whole path to avoid duplicate orders. Small buffers at fabs and OSATs provide a limited fallback for production inputs not represented by explicit sink demand. All table sizes and action lengths are read from the configuration.",
+   "proposed": [
+    {
+     "hash": "515b1e3e5b68",
+     "reward": -1.940920842588046
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "e9e02ed570e2",
+     "reward": 0.4989654569222609
+    },
+    {
+     "hash": "42234a514374",
+     "reward": 0.5389396075457594
+    },
+    {
+     "hash": "e0c2ffb7bdd2",
+     "reward": 0.49604062845962676
+    },
+    {
+     "hash": "5ea86ed4fe66",
+     "reward": 0.4959127949022634
+    }
+   ],
+   "usage": {
+    "input_tokens": 20972,
+    "output_tokens": 12034,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.00766609
+   }
+  },
+  {
+   "iter": 16,
+   "reasoning": "The strongest policy computes replenishment needs before allocating flows, so multiple alternate routes can each fill the same deficit. This proposal recomputes deficits after every allocation, preserves arrival-time accounting, extrapolates forecasts for long routes, and delays projected queued cargo during announced closures. It retains the successful inventory-buffer approach and shared capacity budgets. These changes are candidates for evaluation; an improved score is not yet verified.",
+   "proposed": [
+    {
+     "hash": "53223f270eeb",
+     "reward": 0.49608529913471106
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "51e2c75617a1",
+     "reward": 0.48913787594283203
+    },
+    {
+     "hash": "459162279f44",
+     "reward": 0.43541571048092975
+    },
+    {
+     "hash": "7a3bdc65454a",
+     "reward": 0.47785280823071163
+    },
+    {
+     "hash": "e9e02ed570e2",
+     "reward": 0.4989654569222609
+    }
+   ],
+   "usage": {
+    "input_tokens": 21493,
+    "output_tokens": 2700,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0605259
+   }
+  },
+  {
+   "iter": 17,
+   "reasoning": "The strongest provided policy is a useful one-hop inventory controller, but its estimates can be improved by consistently accounting for stock, in-transit shipments, work in process, and chokepoint queue lots when sizing replenishment. The policy below also shares edge and chokepoint capacity across decisions, considers pending prohibitions and current route conditions, and prioritizes replenishment using demand penalties and downstream reachability. It leaves tanker release overrides at their safe default rather than risking an unverified release plan.",
+   "proposed": [
+    {
+     "hash": "2cac10636370",
+     "reward": -1.634267781576407
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "d17430ca4973",
+     "reward": 0.5384263474491618
+    },
+    {
+     "hash": "e44a28268aad",
+     "reward": 0.4959246178916349
+    },
+    {
+     "hash": "51e2c75617a1",
+     "reward": 0.48913787594283203
+    },
+    {
+     "hash": "e08614f2a90f",
+     "reward": 0.4949796506031714
+    }
+   ],
+   "usage": {
+    "input_tokens": 19571,
+    "output_tokens": 12426,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.00772199
+   }
+  },
+  {
+   "iter": 18,
+   "reasoning": "The strongest supplied policy uses a useful inventory-and-pipeline-aware greedy dispatch, but it estimates intermediate-node needs from nominal throughput. This version retains that approach while estimating intermediate needs from reachable sink forecasts when possible, so it is less likely to build stock merely because a route has high capacity. It also tracks remaining on-hand stock separately from future arrivals, reducing the chance that planned dispatches leave inventory incorrectly counted as available coverage.",
+   "proposed": [
+    {
+     "hash": "560fa7fd785d",
+     "reward": 0.5412517726069141
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "42234a514374",
+     "reward": 0.5389396075457594
+    },
+    {
+     "hash": "d17430ca4973",
+     "reward": 0.5384263474491618
+    },
+    {
+     "hash": "e44a28268aad",
+     "reward": 0.4959246178916349
+    },
+    {
+     "hash": "e0c2ffb7bdd2",
+     "reward": 0.49604062845962676
+    }
+   ],
+   "usage": {
+    "input_tokens": 18560,
+    "output_tokens": 9707,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.00626139
+   }
+  },
+  {
+   "iter": 19,
+   "reasoning": "The strongest supplied policy already uses inventory projections, route costs, and shared capacity limits, but it can miss production-chain replenishment when an input commodity has no path to a demand sink. This policy keeps projected-arrival-aware routing to sinks and adds conservative buffers at fab, OSAT, and material nodes. It allocates stock by cost and shortage penalty, while accounting for lane travel time, pending prohibitions, current route masks, and chokepoint throughput. Shapes and indices are derived from the supplied tables.",
+   "proposed": [
+    {
+     "hash": "786daad8800d",
+     "reward": -1.9514088415663071
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "51e2c75617a1",
+     "reward": 0.48913787594283203
+    },
+    {
+     "hash": "7a3bdc65454a",
+     "reward": 0.47785280823071163
+    },
+    {
+     "hash": "e44a28268aad",
+     "reward": 0.4959246178916349
+    },
+    {
+     "hash": "e0c2ffb7bdd2",
+     "reward": 0.49604062845962676
+    }
+   ],
+   "usage": {
+    "input_tokens": 18821,
+    "output_tokens": 10199,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0065334899999999994
+   }
+  },
+  {
+   "iter": 20,
+   "reasoning": "The strongest policy uses local replenishment rather than committing inventory to hypothetical downstream paths. I retain that approach, but improve inventory accounting: dispatched stock is removed from projected coverage, forecasts are extrapolated for long routes, and cargo behind closures or prohibited edges is not treated as immediately available. Intermediate buffers also taper near the episode end using estimated downstream travel time. These changes target avoidable shortages and late, unusable replenishment; their score still needs evaluation.",
+   "proposed": [
+    {
+     "hash": "cc20fc2c04b8",
+     "reward": 0.45436076670945896
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "459162279f44",
+     "reward": 0.43541571048092975
+    },
+    {
+     "hash": "e08614f2a90f",
+     "reward": 0.4949796506031714
+    },
+    {
+     "hash": "51e2c75617a1",
+     "reward": 0.48913787594283203
+    },
+    {
+     "hash": "7a3bdc65454a",
+     "reward": 0.47785280823071163
+    }
+   ],
+   "usage": {
+    "input_tokens": 21434,
+    "output_tokens": 3471,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.0681179
+   }
+  },
+  {
+   "iter": 21,
+   "reasoning": "The strongest supplied policy is a useful baseline, but it can be improved by planning shipments against sink demand over complete routes while dispatching only the first route this week. This policy tracks stock, forecast demand, pipeline, WIP, and chokepoint queues; shares edge and chokepoint capacity across actions; and adds a lower-priority buffer rule for intermediate and production nodes so inputs without a same-commodity sink are not ignored. It uses current prohibitions, announced prohibitions, tariffs, and modest warning-based route costs. The score is scenario-dependent, so this is a proposed policy rather than a guaranteed measured improvement.",
+   "proposed": [
+    {
+     "hash": "faddde65cf22",
+     "reward": 0.3078788045515111
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "7a3bdc65454a",
+     "reward": 0.47785280823071163
+    },
+    {
+     "hash": "e9e02ed570e2",
+     "reward": 0.4989654569222609
+    },
+    {
+     "hash": "459162279f44",
+     "reward": 0.43541571048092975
+    },
+    {
+     "hash": "d17430ca4973",
+     "reward": 0.5384263474491618
+    }
+   ],
+   "usage": {
+    "input_tokens": 19006,
+    "output_tokens": 15081,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.00899299
+   }
+  },
+  {
+   "iter": 22,
+   "reasoning": "The strongest examples use a greedy route-by-route allocation, which can send goods toward intermediate nodes without accounting for whether those nodes lead to valuable demand. This policy estimates each node\u2019s cheapest currently usable continuation to a sink, uses that downstream value when ranking shipments, and estimates intermediate replenishment from reachable sink demand rather than physical throughput alone. It also accounts for current capacity, chokepoint throughput, inventory, shipments in transit, WIP, queued lots, and announced prohibitions. Warning scores add only a modest route penalty so uncertain signals do not dominate the observed network state.",
+   "proposed": [
+    {
+     "hash": "4d61f02787cd",
+     "reward": -2.107824162609576
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "53223f270eeb",
+     "reward": 0.49608529913471106
+    },
+    {
+     "hash": "cc20fc2c04b8",
+     "reward": 0.45436076670945896
+    },
+    {
+     "hash": "9448e9b54887",
+     "reward": 0.49767556783699146
+    },
+    {
+     "hash": "e0c2ffb7bdd2",
+     "reward": 0.49604062845962676
+    }
+   ],
+   "usage": {
+    "input_tokens": 17165,
+    "output_tokens": 9526,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.00603139
+   }
+  },
+  {
+   "iter": 23,
+   "reasoning": "The leading policies are all around 0.5 and share a greedy routing pattern. This policy keeps that useful receding-horizon structure, but improves how it estimates whether a shipment can serve demand: it accounts for arrival timing, existing inventory and scheduled arrivals, and plans through multiple transport legs. It also supports goods that must be buffered at a fab, OSAT, grid, or material node before use, and uses warnings to modestly favor safer routes and build a limited demand buffer. All tables and action sizes are read from the supplied config.",
+   "proposed": [
+    {
+     "hash": "69e0e48955aa",
+     "reward": 0.2765283561232398
+    }
+   ],
+   "sampled": [
+    {
+     "hash": "9448e9b54887",
+     "reward": 0.49767556783699146
+    },
+    {
+     "hash": "e44a28268aad",
+     "reward": 0.4959246178916349
+    },
+    {
+     "hash": "65e065ea2f54",
+     "reward": 0.49949709580513546
+    },
+    {
+     "hash": "51e2c75617a1",
+     "reward": 0.48913787594283203
+    }
+   ],
+   "usage": {
+    "input_tokens": 20360,
+    "output_tokens": 17473,
+    "cached_tokens": 4979,
+    "cache_write_tokens": 0,
+    "cost": 0.01032439
+   }
+  }
+ ]
+}
